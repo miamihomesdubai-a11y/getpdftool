@@ -1,0 +1,4 @@
+# Google AdSense — replace pub-XXXXXXXXXXXXXXXX below with the publisher
+# ID you receive after AdSense approves your site.
+# (Format: domain, publisherID, relationship, certificationID)
+google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0

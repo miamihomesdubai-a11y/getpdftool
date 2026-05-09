@@ -1,0 +1,146 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-white text-ink-900 antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+  /* Display font on hero/section headings — only outside .prose so legal pages stay calm. */
+  h1:not(.prose h1),
+  h2:not(.prose h2),
+  h3:not(.prose h3) {
+    font-family:
+      "Outfit",
+      "Inter",
+      system-ui,
+      -apple-system,
+      sans-serif;
+    letter-spacing: -0.025em;
+  }
+}
+
+@layer components {
+  .container-narrow {
+    @apply mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8;
+  }
+
+  /* Primary CTA — red, big, with hover lift. */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl
+           bg-brand-600 px-7 py-3.5 text-base font-semibold text-white
+           shadow-cta ring-1 ring-brand-700/30 transition
+           hover:-translate-y-0.5 hover:bg-brand-700 hover:shadow-pop
+           focus-visible:outline focus-visible:outline-2
+           focus-visible:outline-offset-2 focus-visible:outline-brand-600
+           active:translate-y-0
+           disabled:cursor-not-allowed disabled:opacity-60
+           disabled:hover:translate-y-0 disabled:hover:bg-brand-600;
+  }
+
+  /* Smaller red button (toolbar / inline) */
+  .btn-primary-sm {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl
+           bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white
+           shadow-soft ring-1 ring-brand-700/20 transition
+           hover:-translate-y-0.5 hover:bg-brand-700 hover:shadow-accent
+           disabled:cursor-not-allowed disabled:opacity-60
+           disabled:hover:translate-y-0 disabled:hover:bg-brand-600;
+  }
+
+  /* Ghost — quiet white. */
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl
+           border border-ink-200 bg-white px-4 py-2.5 text-sm
+           font-semibold text-ink-700 transition
+           hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700
+           disabled:cursor-not-allowed disabled:opacity-60
+           disabled:hover:border-ink-200 disabled:hover:bg-white
+           disabled:hover:text-ink-700;
+  }
+
+  /* Editor toolbar tool buttons — compact pill with icon + label. */
+  .tool-btn {
+    @apply inline-flex flex-col items-center justify-center gap-0.5
+           rounded-xl border border-ink-200 bg-white px-3 py-2 text-[11px]
+           font-semibold text-ink-700 transition
+           hover:-translate-y-0.5 hover:border-brand-400 hover:bg-brand-50
+           hover:text-brand-700 hover:shadow-soft;
+  }
+  .tool-btn-active {
+    @apply border-brand-500 bg-brand-50 text-brand-700
+           ring-2 ring-brand-300 shadow-soft;
+  }
+
+  /* Hero badge with star icon. */
+  .badge-pill {
+    @apply inline-flex items-center gap-1.5 rounded-full bg-brand-100
+           px-4 py-1.5 text-xs font-bold uppercase tracking-wider
+           text-brand-600 ring-1 ring-brand-200;
+  }
+}
+
+/* PDF page wrapper */
+.pdf-page-wrapper {
+  position: relative;
+  display: inline-block;
+  background: white;
+  box-shadow:
+    0 1px 3px rgba(15, 23, 42, 0.08),
+    0 8px 28px -10px rgba(220, 38, 38, 0.18);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.pdf-page-wrapper canvas {
+  display: block;
+}
+.pdf-overlay {
+  position: absolute;
+  inset: 0;
+  cursor: crosshair;
+}
+.pdf-text-input {
+  position: absolute;
+  background: rgba(255, 255, 0, 0.15);
+  border: 1px dashed #dc2626;
+  outline: none;
+  font-family: Helvetica, Arial, sans-serif;
+  padding: 2px 4px;
+  min-width: 80px;
+  min-height: 1.5em;
+  resize: none;
+  overflow: hidden;
+  white-space: pre;
+}
+
+/* Subtle pink "blob" decorations for hero/dropzone areas. */
+.bg-deco {
+  position: relative;
+}
+.bg-deco::before,
+.bg-deco::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  z-index: 0;
+}
+.bg-deco::before {
+  left: -120px;
+  top: 60px;
+  width: 320px;
+  height: 320px;
+  background: radial-gradient(circle, rgba(254, 226, 226, 0.6) 0%, transparent 70%);
+  filter: blur(20px);
+}
+.bg-deco::after {
+  right: -120px;
+  top: 200px;
+  width: 360px;
+  height: 360px;
+  background: radial-gradient(circle, rgba(254, 226, 226, 0.4) 0%, transparent 70%);
+  filter: blur(20px);
+}
