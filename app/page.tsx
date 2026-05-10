@@ -82,12 +82,35 @@ export default function HomePage() {
         <AdSlot label="Sponsored" />
       </div>
 
-      {/* Features */}
+      {/*
+        --------------------------------------------------------------------
+        TOOL DISCOVERY — moved up. Visitors land in the editor; immediately
+        below they see the full catalogue of "Organise / Convert from /
+        Convert to" tools so they can jump to whichever conversion they
+        actually came for.
+        --------------------------------------------------------------------
+      */}
+      <RelatedTools heading="Organise PDF — all-in-one tools" />
+      <ConvertFromTools />
+      <ConvertToTools />
+
+      {/* Mid-page ad slot #2 — between tools and the marketing content */}
+      <div className="container-narrow">
+        <AdSlot label="Sponsored" />
+      </div>
+
+      {/*
+        --------------------------------------------------------------------
+        ABOUT / WHY — moved down. Visitors who scroll this far are evaluating
+        rather than ready-to-edit, so the marketing copy comes after the
+        tool list.
+        --------------------------------------------------------------------
+      */}
       <section className="container-narrow py-12">
-        <h2 className="text-center text-2xl font-bold text-gray-900 sm:text-3xl">
+        <h2 className="text-center text-2xl font-bold text-ink-900 sm:text-3xl">
           Everything you need to work with PDFs
         </h2>
-        <p className="mx-auto mt-3 max-w-2xl text-center text-gray-600">
+        <p className="mx-auto mt-3 max-w-2xl text-center text-ink-600">
           GetPDFTool is built for everyone — students, teachers, freelancers,
           and small businesses. Free forever, with more tools coming soon.
         </p>
@@ -95,13 +118,13 @@ export default function HomePage() {
           {FEATURES.map((f) => (
             <div
               key={f.title}
-              className="rounded-2xl border border-gray-100 bg-white p-6 shadow-soft transition hover:-translate-y-0.5 hover:shadow-lg"
+              className="rounded-2xl border border-ink-100 bg-white p-6 text-center shadow-soft transition hover:-translate-y-0.5 hover:shadow-pop sm:text-left"
             >
               <div className="text-3xl">{f.icon}</div>
-              <h3 className="mt-3 text-lg font-semibold text-gray-900">
+              <h3 className="mt-3 text-lg font-semibold text-ink-900">
                 {f.title}
               </h3>
-              <p className="mt-2 text-sm leading-relaxed text-gray-600">
+              <p className="mt-2 text-sm leading-relaxed text-ink-600">
                 {f.body}
               </p>
             </div>
@@ -111,54 +134,45 @@ export default function HomePage() {
 
       {/* How-it-works */}
       <section className="container-narrow py-8">
-        <div className="rounded-3xl bg-gradient-to-br from-brand-50 to-accent-500/5 p-8 sm:p-12">
-          <h2 className="text-2xl font-bold text-gray-900 sm:text-3xl">
+        <div className="rounded-3xl bg-gradient-to-br from-brand-50 to-accent-100/30 p-8 sm:p-12">
+          <h2 className="text-center text-2xl font-bold text-ink-900 sm:text-3xl sm:text-left">
             How it works
           </h2>
           <ol className="mt-6 grid gap-6 sm:grid-cols-3">
-            <li>
-              <div className="grid h-8 w-8 place-items-center rounded-full bg-brand-600 text-sm font-bold text-white">
+            <li className="text-center sm:text-left">
+              <div className="mx-auto grid h-8 w-8 place-items-center rounded-full bg-brand-600 text-sm font-bold text-white sm:mx-0">
                 1
               </div>
-              <h3 className="mt-3 font-semibold text-gray-900">
+              <h3 className="mt-3 font-semibold text-ink-900">
                 Open your PDF
               </h3>
-              <p className="mt-1 text-sm text-gray-600">
+              <p className="mt-1 text-sm text-ink-600">
                 Drag and drop, or pick a file from your computer.
               </p>
             </li>
-            <li>
-              <div className="grid h-8 w-8 place-items-center rounded-full bg-brand-600 text-sm font-bold text-white">
+            <li className="text-center sm:text-left">
+              <div className="mx-auto grid h-8 w-8 place-items-center rounded-full bg-brand-600 text-sm font-bold text-white sm:mx-0">
                 2
               </div>
-              <h3 className="mt-3 font-semibold text-gray-900">
+              <h3 className="mt-3 font-semibold text-ink-900">
                 Edit with the toolbar
               </h3>
-              <p className="mt-1 text-sm text-gray-600">
+              <p className="mt-1 text-sm text-ink-600">
                 Add text, draw, highlight, or rotate pages.
               </p>
             </li>
-            <li>
-              <div className="grid h-8 w-8 place-items-center rounded-full bg-brand-600 text-sm font-bold text-white">
+            <li className="text-center sm:text-left">
+              <div className="mx-auto grid h-8 w-8 place-items-center rounded-full bg-brand-600 text-sm font-bold text-white sm:mx-0">
                 3
               </div>
-              <h3 className="mt-3 font-semibold text-gray-900">Download</h3>
-              <p className="mt-1 text-sm text-gray-600">
+              <h3 className="mt-3 font-semibold text-ink-900">Download</h3>
+              <p className="mt-1 text-sm text-ink-600">
                 Save your edited PDF in one click — straight to your device.
               </p>
             </li>
           </ol>
         </div>
       </section>
-
-      {/* Organise PDF section */}
-      <RelatedTools heading="Organise PDF — all-in-one tools" />
-
-      {/* Convert from PDF section */}
-      <ConvertFromTools />
-
-      {/* Convert to PDF section */}
-      <ConvertToTools />
 
       {/* Bottom ad slot */}
       <div className="container-narrow">
@@ -167,22 +181,22 @@ export default function HomePage() {
 
       {/* FAQ */}
       <section className="container-narrow py-12">
-        <h2 className="text-2xl font-bold text-gray-900 sm:text-3xl">
+        <h2 className="text-center text-2xl font-bold text-ink-900 sm:text-left sm:text-3xl">
           Frequently asked questions
         </h2>
         <div className="mt-6 space-y-4">
           {FAQS.map((faq) => (
             <details
               key={faq.q}
-              className="group rounded-2xl border border-gray-100 bg-white p-5 shadow-soft"
+              className="group rounded-2xl border border-ink-100 bg-white p-5 shadow-soft"
             >
-              <summary className="cursor-pointer list-none text-base font-semibold text-gray-900">
-                <span className="mr-2 text-brand-600 group-open:rotate-90 inline-block transition">
+              <summary className="cursor-pointer list-none text-base font-semibold text-ink-900">
+                <span className="mr-2 inline-block text-brand-600 transition group-open:rotate-90">
                   ▶
                 </span>
                 {faq.q}
               </summary>
-              <p className="mt-3 text-sm leading-relaxed text-gray-600">
+              <p className="mt-3 text-sm leading-relaxed text-ink-600">
                 {faq.a}
               </p>
             </details>

@@ -44,10 +44,10 @@ export default function ConvertToTools({
   const items = CONVERT_TO_PDF_TOOLS.filter((t) => t.href !== excludeHref);
   return (
     <section className="container-narrow py-12">
-      <h2 className="text-2xl font-bold text-gray-900 sm:text-3xl">
+      <h2 className="text-center text-2xl font-bold text-ink-900 sm:text-left sm:text-3xl">
         {heading}
       </h2>
-      <p className="mt-2 text-sm text-gray-600">
+      <p className="mt-2 text-center text-sm text-ink-600 sm:text-left">
         Turn Word, Excel, images or HTML into PDF — free, browser-based, your
         files stay private.
       </p>
@@ -56,17 +56,17 @@ export default function ConvertToTools({
           <Link
             key={t.href}
             href={t.href}
-            className="group rounded-2xl border border-gray-100 bg-white p-5 shadow-soft transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-lg"
+            className="group rounded-2xl border border-ink-100 bg-white p-5 shadow-soft transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-pop"
           >
-            <div className="flex items-start gap-3">
-              <div className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl bg-gradient-to-br from-emerald-500 to-brand-500 text-lg text-white">
+            <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:items-start sm:text-left">
+              <div className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl bg-gradient-to-br from-emerald-500 to-brand-500 text-lg text-white shadow-soft">
                 {t.icon}
               </div>
               <div>
-                <h3 className="text-base font-semibold text-gray-900 group-hover:text-brand-700">
+                <h3 className="text-base font-semibold text-ink-900 group-hover:text-brand-700">
                   {t.title}
                 </h3>
-                <p className="mt-1 text-sm leading-relaxed text-gray-600">
+                <p className="mt-1 text-sm leading-relaxed text-ink-600">
                   {t.body}
                 </p>
               </div>
