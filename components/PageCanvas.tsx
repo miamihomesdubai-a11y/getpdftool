@@ -7,12 +7,14 @@ import type {
   DrawAnnotation,
   HighlightAnnotation,
   LinkAnnotation,
+  MarkAnnotation,
   PageMeta,
   RectangleAnnotation,
   TextAnnotation,
   ToolKind,
   WhiteoutAnnotation,
 } from "@/lib/types";
+import type { TextItem } from "@/lib/pdfText";
 import TextAnnotationView from "./TextAnnotationView";
 
 type SearchHighlight = {
@@ -43,10 +45,13 @@ type Props = {
   shapeStrokeWidth: number;
   searchHighlights?: SearchHighlight[];
   activeTextId: string | null;
+  /** Text items extracted from the page — only present in text-editor mode. */
+  textItems?: TextItem[];
   onAddAnnotation: (a: Annotation) => void;
   onAddTextAndActivate: (a: TextAnnotation) => void;
   onAddLinkAndEdit: (a: LinkAnnotation) => void;
   onEditLink: (id: string) => void;
+  onEditTextItem: (pageIndex: number, item: TextItem) => void;
   onDeleteAnnotation: (id: string) => void;
   onMoveAnnotation: (id: string, dx: number, dy: number) => void;
   onUpdateText: (id: string, text: string) => void;
@@ -89,10 +94,12 @@ export default function PageCanvas({
   shapeStrokeWidth,
   searchHighlights,
   activeTextId,
+  textItems,
   onAddAnnotation,
   onAddTextAndActivate,
   onAddLinkAndEdit,
   onEditLink,
+  onEditTextItem,
   onDeleteAnnotation,
   onMoveAnnotation,
   onUpdateText,
@@ -279,6 +286,24 @@ export default function PageCanvas({
         y1: p.y,
         subtype: tool,
       });
+      return;
+    }
+    if (tool === "cross" || tool === "check") {
+      // Drop a 32x32 mark centred on the click point.
+      const size = 32;
+      const ann: MarkAnnotation = {
+        id: newId(),
+        type: "mark",
+        pageIndex,
+        x: p.x - size / 2,
+        y: p.y - size / 2,
+        width: size,
+        height: size,
+        shape: tool === "cross" ? "cross" : "check",
+        color: shapeColor,
+        strokeWidth: Math.max(2, shapeStrokeWidth),
+      };
+      onAddAnnotation(ann);
       return;
     }
   };
@@ -588,6 +613,53 @@ export default function PageCanvas({
                     />
                   );
                 }
+                if (a.type === "mark") {
+                  const x0 = a.x + dx;
+                  const y0 = a.y + dy;
+                  if (a.shape === "cross") {
+                    return (
+                      <g key={a.id} {...ip}>
+                        <line
+                          x1={x0}
+                          y1={y0}
+                          x2={x0 + a.width}
+                          y2={y0 + a.height}
+                          stroke={a.color}
+                          strokeWidth={a.strokeWidth}
+                          strokeLinecap="round"
+                        />
+                        <line
+                          x1={x0 + a.width}
+                          y1={y0}
+                          x2={x0}
+                          y2={y0 + a.height}
+                          stroke={a.color}
+                          strokeWidth={a.strokeWidth}
+                          strokeLinecap="round"
+                        />
+                      </g>
+                    );
+                  }
+                  // check ✓
+                  const p1x = x0 + a.width * 0.15;
+                  const p1y = y0 + a.height * 0.55;
+                  const p2x = x0 + a.width * 0.4;
+                  const p2y = y0 + a.height * 0.85;
+                  const p3x = x0 + a.width * 0.85;
+                  const p3y = y0 + a.height * 0.15;
+                  return (
+                    <polyline
+                      key={a.id}
+                      points={`${p1x},${p1y} ${p2x},${p2y} ${p3x},${p3y}`}
+                      fill="none"
+                      stroke={a.color}
+                      strokeWidth={a.strokeWidth}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      {...ip}
+                    />
+                  );
+                }
                 if (a.type === "draw") {
                   const d = a.points
                     .map(
@@ -610,6 +682,34 @@ export default function PageCanvas({
                 }
                 return null;
               })}
+
+              {/* Text-editor mode: dotted rectangles around every text run */}
+              {tool === "text-editor" &&
+                textItems &&
+                textItems.map((it, idx) => {
+                  const padX = 2;
+                  const padY = 2;
+                  return (
+                    <rect
+                      key={`te-${idx}`}
+                      x={it.x - padX}
+                      y={it.y - padY}
+                      width={Math.max(8, it.width) + padX * 2}
+                      height={it.height + padY * 2}
+                      fill="#06b6d4"
+                      fillOpacity={0.04}
+                      stroke="#0891b2"
+                      strokeWidth={1}
+                      strokeDasharray="3 3"
+                      pointerEvents="all"
+                      style={{ cursor: "text" }}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        onEditTextItem(pageIndex, it);
+                      }}
+                    />
+                  );
+                })}
 
               {/* Search match highlights */}
               {searchHighlights?.map((h, idx) => (

@@ -1,11 +1,14 @@
 export type ToolKind =
   | "select"
   | "text"
+  | "text-editor"
   | "draw"
   | "highlight"
   | "rectangle"
   | "whiteout"
   | "link"
+  | "cross"
+  | "check"
   | "eraser";
 
 export type Color = string;
@@ -110,13 +113,28 @@ export type LinkAnnotation = {
   pageNumber?: number;
 };
 
+/** Form-fill marks: a cross (X) or a check (✓) drawn as line strokes. */
+export type MarkAnnotation = {
+  id: string;
+  type: "mark";
+  pageIndex: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  shape: "cross" | "check";
+  color: Color;
+  strokeWidth: number;
+};
+
 export type Annotation =
   | TextAnnotation
   | DrawAnnotation
   | HighlightAnnotation
   | RectangleAnnotation
   | WhiteoutAnnotation
-  | LinkAnnotation;
+  | LinkAnnotation
+  | MarkAnnotation;
 
 export type Rotation = 0 | 90 | 180 | 270;
 

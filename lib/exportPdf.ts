@@ -355,5 +355,36 @@ function drawAnnotation(
       });
       break;
     }
+    case "mark": {
+      const xPt = a.x / scale;
+      const yTopPt = pageHeightPt - a.y / scale;
+      const wPt = a.width / scale;
+      const hPt = a.height / scale;
+      const thickness = Math.max(0.5, a.strokeWidth / scale);
+      const color = c(a.color);
+      if (a.shape === "cross") {
+        // Two diagonals.
+        page.drawLine({
+          start: { x: xPt, y: yTopPt },
+          end: { x: xPt + wPt, y: yTopPt - hPt },
+          thickness,
+          color,
+        });
+        page.drawLine({
+          start: { x: xPt + wPt, y: yTopPt },
+          end: { x: xPt, y: yTopPt - hPt },
+          thickness,
+          color,
+        });
+      } else {
+        // Check mark: short stroke down-right, then long stroke up-right.
+        const p1 = { x: xPt + wPt * 0.15, y: yTopPt - hPt * 0.55 };
+        const p2 = { x: xPt + wPt * 0.4, y: yTopPt - hPt * 0.85 };
+        const p3 = { x: xPt + wPt * 0.85, y: yTopPt - hPt * 0.15 };
+        page.drawLine({ start: p1, end: p2, thickness, color });
+        page.drawLine({ start: p2, end: p3, thickness, color });
+      }
+      break;
+    }
   }
 }

@@ -112,6 +112,11 @@ export default function PDFEditor() {
   const [searchBusy, setSearchBusy] = useState(false);
   const textCacheRef = useRef<Map<string, TextItem[]>>(new Map());
 
+  // Text-editor tool: text items per display page (for dotted-box overlay).
+  const [textItemsByPage, setTextItemsByPage] = useState<
+    Map<number, TextItem[]>
+  >(new Map());
+
   // ---- Refs for stable history snapshots ---------------------------------
   const pagesRef = useRef(pages);
   const annotationsRef = useRef(annotations);
@@ -364,6 +369,50 @@ export default function PDFEditor() {
     setEditingLinkId(id);
   }, []);
 
+  /**
+   * Text-editor tool: user clicked a text run from the PDF. Whiteout the
+   * original text and drop an editable text annotation in its place,
+   * pre-filled with the original string.
+   */
+  const editTextItem = useCallback(
+    (pageIndex: number, item: TextItem) => {
+      const padX = Math.max(2, item.height * 0.1);
+      const padY = Math.max(2, item.height * 0.18);
+      const whiteoutAnn: WhiteoutAnnotation = {
+        id: newId(),
+        type: "whiteout",
+        pageIndex,
+        x: item.x - padX / 2,
+        y: item.y - padY / 2,
+        width: item.width + padX,
+        height: item.height + padY,
+      };
+      const textAnn: TextAnnotation = {
+        id: newId(),
+        type: "text",
+        pageIndex,
+        x: item.x,
+        y: item.y,
+        text: item.str,
+        fontSize: item.height,
+        fontFamily: "helvetica",
+        bold: false,
+        underline: false,
+        color: "#000000",
+      };
+      pushHistory();
+      setAnnotations((prev) => [...prev, whiteoutAnn, textAnn]);
+      // Sync the toolbar to the new active text and activate it for editing.
+      setTextColor(textAnn.color);
+      setTextFontSize(textAnn.fontSize);
+      setTextFontFamily(textAnn.fontFamily);
+      setTextBold(textAnn.bold);
+      setTextUnderline(textAnn.underline);
+      setActiveTextId(textAnn.id);
+    },
+    [pushHistory]
+  );
+
   const updateLinkAnnotation = useCallback(
     (id: string, patch: Partial<LinkAnnotation>) => {
       setAnnotations((prev) =>
@@ -613,6 +662,60 @@ export default function PDFEditor() {
     }
   };
 
+  /** Print the current PDF directly from the browser. */
+  const printPdf = async () => {
+    if (pages.length === 0) return;
+    deactivateText();
+    setExporting(true);
+    setError(null);
+    try {
+      const sourcesForExport = new Map<string, Uint8Array>();
+      for (const [id, src] of sources.entries()) {
+        sourcesForExport.set(id, src.bytes);
+      }
+      const bytes = await exportEditedPdf({
+        sources: sourcesForExport,
+        pages,
+        annotations,
+        scale: SCALE,
+      });
+      const blob = new Blob([new Uint8Array(bytes)], {
+        type: "application/pdf",
+      });
+      const url = URL.createObjectURL(blob);
+      // Hidden iframe so the page itself doesn't navigate.
+      const iframe = document.createElement("iframe");
+      iframe.style.cssText =
+        "position: fixed; right: 0; bottom: 0; width: 0; height: 0; border: 0;";
+      iframe.src = url;
+      iframe.onload = () => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch (err) {
+          console.error(err);
+        }
+        // Give the print dialog 60s before tearing down.
+        setTimeout(() => {
+          try {
+            document.body.removeChild(iframe);
+          } catch {
+            /* already gone */
+          }
+          URL.revokeObjectURL(url);
+        }, 60_000);
+      };
+      document.body.appendChild(iframe);
+    } catch (err) {
+      console.error(err);
+      setError(
+        "Could not open the print dialog. Try Save Changes then Download, then print from your browser."
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
+
   /** Build a File object from the saved bytes (or null if not saved). */
   const buildSavedFile = useCallback((): File | null => {
     if (!savedBytes) return null;
@@ -718,6 +821,31 @@ export default function PDFEditor() {
     },
     [pages, sources]
   );
+
+  // When text-editor tool is active, load text items for every text-based
+  // page so the dotted overlays can render.
+  useEffect(() => {
+    if (tool !== "text-editor") {
+      // Clear cached display items so we don't keep stale boxes around.
+      if (textItemsByPage.size > 0) setTextItemsByPage(new Map());
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const next = new Map<number, TextItem[]>();
+      for (let i = 0; i < pages.length; i++) {
+        const items = await getPageText(i);
+        if (cancelled) return;
+        if (items.length > 0) next.set(i, items);
+      }
+      if (!cancelled) setTextItemsByPage(next);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // textItemsByPage intentionally excluded — it's the output of this effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tool, pages, getPageText]);
 
   const scrollToMatch = useCallback((m: SearchMatch) => {
     const node = document.querySelector<HTMLElement>(
@@ -1000,6 +1128,12 @@ export default function PDFEditor() {
               </button>
             </div>
             <ToolBtn
+              active={tool === "text-editor"}
+              icon="✎"
+              label="Text Editor"
+              onClick={() => setTool("text-editor")}
+            />
+            <ToolBtn
               active={tool === "draw"}
               icon="✏"
               label="Draw"
@@ -1028,6 +1162,18 @@ export default function PDFEditor() {
               icon="🔗"
               label="Link"
               onClick={() => setTool("link")}
+            />
+            <ToolBtn
+              active={tool === "cross"}
+              icon="✗"
+              label="X"
+              onClick={() => setTool("cross")}
+            />
+            <ToolBtn
+              active={tool === "check"}
+              icon="✓"
+              label="Check"
+              onClick={() => setTool("check")}
             />
             <ToolBtn
               active={tool === "eraser"}
@@ -1190,6 +1336,15 @@ export default function PDFEditor() {
             </button>
             <button
               type="button"
+              onClick={printPdf}
+              disabled={exporting || pages.length === 0}
+              className="btn-ghost"
+              title="Print this PDF"
+            >
+              🖨 Print
+            </button>
+            <button
+              type="button"
               onClick={saveChanges}
               disabled={exporting || pages.length === 0 || !!savedBytes}
               className="btn-primary"
@@ -1320,10 +1475,14 @@ export default function PDFEditor() {
               shapeStrokeWidth={shapeStrokeWidth}
               searchHighlights={highlightsByPage.get(i)}
               activeTextId={activeTextId}
+              textItems={
+                tool === "text-editor" ? textItemsByPage.get(i) : undefined
+              }
               onAddAnnotation={addAnnotation}
               onAddTextAndActivate={addTextAndActivate}
               onAddLinkAndEdit={addLinkAndEdit}
               onEditLink={editLink}
+              onEditTextItem={editTextItem}
               onDeleteAnnotation={deleteAnnotation}
               onMoveAnnotation={moveAnnotation}
               onUpdateText={updateText}
