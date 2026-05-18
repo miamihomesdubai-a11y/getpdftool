@@ -89,6 +89,18 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800;900&family=Caveat:wght@400;700&family=Dancing+Script:wght@400;700&family=Great+Vibes&family=Pacifico&family=Sacramento&family=Satisfy&display=swap"
           rel="stylesheet"
         />
+        {/* Google AdSense loader. MUST live in <head> for AdSense's
+            ownership crawler to detect it — they parse the raw HTML
+            and ignore body-scoped scripts during the review check.
+            Plain <script> (not next/script) so it appears literally
+            in the head of every server-rendered page. */}
+        {ADSENSE_CLIENT && (
+          <script
+            async
+            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`}
+            crossOrigin="anonymous"
+          />
+        )}
       </head>
       <body className="min-h-screen flex flex-col bg-white text-ink-900">
         {/* Sitewide structured data — Organization + WebSite. Powers
@@ -99,14 +111,8 @@ export default function RootLayout({
         <Header />
         <main className="flex-1">{children}</main>
         <Footer />
-        {ADSENSE_CLIENT && (
-          <Script
-            async
-            strategy="afterInteractive"
-            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`}
-            crossOrigin="anonymous"
-          />
-        )}
+        {/* AdSense loader moved to <head> above — required for the
+            ownership-review crawler to find it. */}
         {/* Google Analytics 4 — gtag.js. Loaded after interactive so
             it doesn't block first paint. Two scripts: the gtag library
             itself, then the inline config call. */}
