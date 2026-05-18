@@ -252,6 +252,46 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/*
+        --------------------------------------------------------------------
+        DEMO VIDEO — 90-second Loom walkthrough. Embedded directly so users
+        can watch without leaving the page; the iframe loads lazily so it
+        doesn't block first paint. Sits right after the 3-step "How it
+        works" so curious visitors get a visual confirmation immediately.
+        --------------------------------------------------------------------
+      */}
+      <section className="container-narrow py-12">
+        <div className="text-center">
+          <span className="inline-block rounded-full bg-brand-100 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-brand-700">
+            Watch the demo
+          </span>
+          <h2 className="mt-3 text-2xl font-bold text-ink-900 sm:text-3xl">
+            See GetPDFTool in action
+          </h2>
+          <p className="mx-auto mt-2 max-w-2xl text-sm text-ink-600 sm:text-base">
+            A quick walkthrough of editing, merging, signing and saving a PDF
+            — all in your browser, no upload.
+          </p>
+        </div>
+        <div className="mx-auto mt-6 max-w-4xl">
+          <div className="overflow-hidden rounded-2xl border border-ink-100 bg-ink-900 shadow-pop">
+            <div className="relative w-full" style={{ paddingTop: "56.25%" }}>
+              <iframe
+                src="https://www.loom.com/embed/f04cec460c044b749624f5ef87e2ae2a?hide_owner=true&hide_share=true&hide_title=true&hideEmbedTopBar=true"
+                title="GetPDFTool product walkthrough"
+                loading="lazy"
+                allow="fullscreen; clipboard-write"
+                allowFullScreen
+                className="absolute inset-0 h-full w-full border-0"
+              />
+            </div>
+          </div>
+          <p className="mt-3 text-center text-xs text-ink-500">
+            Hosted on Loom. Press the ▶ button to play.
+          </p>
+        </div>
+      </section>
+
       {/* Bottom ad slot */}
       <div className="container-narrow">
         <AdSlot label="Sponsored" />
