@@ -2,6 +2,11 @@ import dynamic from "next/dynamic";
 import type { Metadata } from "next";
 import AdSlot from "@/components/AdSlot";
 import RelatedTools from "@/components/RelatedTools";
+import {
+  breadcrumbJsonLd,
+  howToJsonLd,
+  ldScriptProps,
+} from "@/lib/seo";
 
 const SignPdfTool = dynamic(() => import("@/components/SignPdfTool"), {
   ssr: false,
@@ -115,6 +120,33 @@ const softwareJsonLd = {
   ],
 };
 
+const howToData = howToJsonLd({
+  name: "How to sign a PDF online for free",
+  description:
+    "Add a signature, date and company stamp to a PDF with GetPDFTool's free online PDF signer.",
+  url: PAGE_URL,
+  totalTimeISO: "PT1M",
+  steps: [
+    {
+      name: "Open your PDF",
+      text: "Drop a PDF on the page or pick one from your computer.",
+    },
+    {
+      name: "Add signature, date or stamp",
+      text: "Upload a PNG/JPEG of your signature and click on the page to place it. Add today's date or a company stamp the same way.",
+    },
+    {
+      name: "Save and download",
+      text: "Click Save Changes, then Download the signed PDF.",
+    },
+  ],
+});
+
+const breadcrumbData = breadcrumbJsonLd([
+  { name: "Home", url: "https://www.getpdftool.com" },
+  { name: "Sign PDF", url: PAGE_URL },
+]);
+
 const FEATURES = [
   {
     icon: "✍️",
@@ -159,6 +191,8 @@ export default function SignPdfPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }}
       />
+      <script {...ldScriptProps(howToData)} />
+      <script {...ldScriptProps(breadcrumbData)} />
 
       <section className="container-narrow pb-2 pt-10 sm:pt-14">
         <div className="text-center">

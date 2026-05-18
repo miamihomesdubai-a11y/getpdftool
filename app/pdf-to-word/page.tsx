@@ -3,6 +3,11 @@ import type { Metadata } from "next";
 import AdSlot from "@/components/AdSlot";
 import RelatedTools from "@/components/RelatedTools";
 import ConvertFromTools from "@/components/ConvertFromTools";
+import {
+  breadcrumbJsonLd,
+  howToJsonLd,
+  ldScriptProps,
+} from "@/lib/seo";
 
 const ConvertFromPdfTool = dynamic(
   () => import("@/components/ConvertFromPdfTool"),
@@ -106,6 +111,33 @@ const softwareJsonLd = {
   ],
 };
 
+const howToData = howToJsonLd({
+  name: "How to convert PDF to Word online for free",
+  description:
+    "Turn any PDF into an editable .docx file with GetPDFTool's free online PDF to Word converter.",
+  url: PAGE_URL,
+  totalTimeISO: "PT1M",
+  steps: [
+    {
+      name: "Open your PDF",
+      text: "Drop a PDF on the page or pick one from your computer.",
+    },
+    {
+      name: "Convert to Word",
+      text: "Click Convert to Word — we extract the text and produce a .docx file.",
+    },
+    {
+      name: "Download & edit",
+      text: "Download the .docx and open it in Microsoft Word, Google Docs, Pages or LibreOffice.",
+    },
+  ],
+});
+
+const breadcrumbData = breadcrumbJsonLd([
+  { name: "Home", url: "https://www.getpdftool.com" },
+  { name: "PDF to Word", url: PAGE_URL },
+]);
+
 export default function PdfToWordPage() {
   return (
     <>
@@ -117,6 +149,8 @@ export default function PdfToWordPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }}
       />
+      <script {...ldScriptProps(howToData)} />
+      <script {...ldScriptProps(breadcrumbData)} />
 
       <section className="container-narrow pb-2 pt-10 sm:pt-14">
         <div className="text-center">

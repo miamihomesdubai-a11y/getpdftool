@@ -10,7 +10,6 @@ import {
   TEXT_COLOR_PALETTE,
   type Annotation,
   type FontFamily,
-  type LinkAnnotation,
   type PageMeta,
   type TextAnnotation,
   type ToolKind,
@@ -27,7 +26,7 @@ import {
 import PageCanvas from "./PageCanvas";
 import AddPageMenu, { type AddPosition } from "./AddPageMenu";
 import FindReplaceModal from "./FindReplaceModal";
-import LinkPropertiesModal from "./LinkPropertiesModal";
+import { downloadFile, printFile, shareFile } from "@/lib/fileActions";
 
 const SCALE = 1.5;
 
@@ -62,11 +61,21 @@ export default function PDFEditor() {
   const [pages, setPages] = useState<PageMeta[]>([]);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [history, setHistory] = useState<Snapshot[]>([]);
+  // Redo stack — separate from history. Cleared whenever the user makes
+  // a fresh edit (any new pushHistory).
+  const [redoStack, setRedoStack] = useState<Snapshot[]>([]);
+  // Save → Preview overlay. When non-null, a full-screen preview of the
+  // exported PDF is shown with Download / Print / Email / Share actions.
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   // ---- Tool + style state -------------------------------------------------
   const [tool, setTool] = useState<ToolKind>("select");
   const [shapeColor, setShapeColor] = useState("#ef4444");
   const [shapeStrokeWidth, setShapeStrokeWidth] = useState(3);
+  // X / Check marks default to black so they read like ink on paper,
+  // with their own color picker so the user can switch to red/blue/etc.
+  const [markColor, setMarkColor] = useState("#111827");
+  const [markStrokeWidth, setMarkStrokeWidth] = useState(3);
 
   // Text style — used as defaults for new text AND mirrored from active text.
   const [textColor, setTextColor] = useState("#111827");
@@ -77,9 +86,11 @@ export default function PDFEditor() {
 
   // Active text (the one being edited, if any).
   const [activeTextId, setActiveTextId] = useState<string | null>(null);
-
-  // Link being edited in the link-properties modal.
-  const [editingLinkId, setEditingLinkId] = useState<string | null>(null);
+  // Currently-selected annotation — drives the dashed bounding box and
+  // resize handles on X / Check marks. null = nothing selected.
+  const [selectedAnnotationId, setSelectedAnnotationId] = useState<
+    string | null
+  >(null);
 
   // ---- View state --------------------------------------------------------
   const [zoom, setZoom] = useState(1.0);
@@ -112,11 +123,6 @@ export default function PDFEditor() {
   const [searchBusy, setSearchBusy] = useState(false);
   const textCacheRef = useRef<Map<string, TextItem[]>>(new Map());
 
-  // Text-editor tool: text items per display page (for dotted-box overlay).
-  const [textItemsByPage, setTextItemsByPage] = useState<
-    Map<number, TextItem[]>
-  >(new Map());
-
   // ---- Refs for stable history snapshots ---------------------------------
   const pagesRef = useRef(pages);
   const annotationsRef = useRef(annotations);
@@ -136,12 +142,20 @@ export default function PDFEditor() {
       ...prev.slice(-49),
       { pages: pagesRef.current, annotations: annotationsRef.current },
     ]);
+    // A fresh edit invalidates any forward (redo) history.
+    setRedoStack([]);
   }, []);
 
+  /** Step back: pop history, push current state to redo, restore. */
   const undo = useCallback(() => {
     setHistory((prev) => {
       if (prev.length === 0) return prev;
       const last = prev[prev.length - 1];
+      // Save current state to redo before reverting.
+      setRedoStack((rs) => [
+        ...rs.slice(-49),
+        { pages: pagesRef.current, annotations: annotationsRef.current },
+      ]);
       setPages(last.pages);
       setAnnotations(last.annotations);
       return prev.slice(0, -1);
@@ -149,7 +163,23 @@ export default function PDFEditor() {
     setActiveTextId(null);
   }, []);
 
-  // Cmd/Ctrl + Z = undo
+  /** Step forward: pop redo, push current state to history, restore. */
+  const redo = useCallback(() => {
+    setRedoStack((rs) => {
+      if (rs.length === 0) return rs;
+      const next = rs[rs.length - 1];
+      setHistory((h) => [
+        ...h.slice(-49),
+        { pages: pagesRef.current, annotations: annotationsRef.current },
+      ]);
+      setPages(next.pages);
+      setAnnotations(next.annotations);
+      return rs.slice(0, -1);
+    });
+    setActiveTextId(null);
+  }, []);
+
+  // Cmd/Ctrl+Z = undo, Cmd/Ctrl+Shift+Z (or Cmd/Ctrl+Y) = redo.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -161,14 +191,20 @@ export default function PDFEditor() {
       ) {
         return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+      const cmd = e.metaKey || e.ctrlKey;
+      if (!cmd) return;
+      const key = e.key.toLowerCase();
+      if (key === "z" && !e.shiftKey) {
         e.preventDefault();
         undo();
+      } else if ((key === "z" && e.shiftKey) || key === "y") {
+        e.preventDefault();
+        redo();
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [undo]);
+  }, [undo, redo]);
 
   // -------- Active text helpers -------------------------------------------
 
@@ -231,6 +267,11 @@ export default function PDFEditor() {
   useEffect(() => {
     if (tool !== "text" && tool !== "select") {
       deactivateText();
+    }
+    // Picking a new drawing tool also clears any mark selection — keeps
+    // the "tool exits cleanly" guarantee.
+    if (tool !== "select") {
+      setSelectedAnnotationId(null);
     }
   }, [tool, deactivateText]);
 
@@ -356,114 +397,12 @@ export default function PDFEditor() {
     [pushHistory]
   );
 
-  const addLinkAndEdit = useCallback(
-    (a: LinkAnnotation) => {
-      pushHistory();
-      setAnnotations((prev) => [...prev, a]);
-      setEditingLinkId(a.id);
-    },
-    [pushHistory]
-  );
-
-  const editLink = useCallback((id: string) => {
-    setEditingLinkId(id);
-  }, []);
-
-  /**
-   * Text-editor tool: user clicked a text run from the PDF. Whiteout the
-   * original text and drop an editable text annotation in its place,
-   * pre-filled with the original string.
-   */
-  const editTextItem = useCallback(
-    (pageIndex: number, item: TextItem) => {
-      const padX = Math.max(2, item.height * 0.1);
-      const padY = Math.max(2, item.height * 0.18);
-      const whiteoutAnn: WhiteoutAnnotation = {
-        id: newId(),
-        type: "whiteout",
-        pageIndex,
-        x: item.x - padX / 2,
-        y: item.y - padY / 2,
-        width: item.width + padX,
-        height: item.height + padY,
-      };
-      const textAnn: TextAnnotation = {
-        id: newId(),
-        type: "text",
-        pageIndex,
-        x: item.x,
-        y: item.y,
-        text: item.str,
-        fontSize: item.height,
-        fontFamily: "helvetica",
-        bold: false,
-        underline: false,
-        color: "#000000",
-      };
-      pushHistory();
-      setAnnotations((prev) => [...prev, whiteoutAnn, textAnn]);
-      // Sync the toolbar to the new active text and activate it for editing.
-      setTextColor(textAnn.color);
-      setTextFontSize(textAnn.fontSize);
-      setTextFontFamily(textAnn.fontFamily);
-      setTextBold(textAnn.bold);
-      setTextUnderline(textAnn.underline);
-      setActiveTextId(textAnn.id);
-    },
-    [pushHistory]
-  );
-
-  const updateLinkAnnotation = useCallback(
-    (id: string, patch: Partial<LinkAnnotation>) => {
-      setAnnotations((prev) =>
-        prev.map((a) =>
-          a.id === id && a.type === "link" ? { ...a, ...patch } : a
-        )
-      );
-    },
-    []
-  );
-
-  const isLinkUseless = (a: LinkAnnotation) => {
-    switch (a.linkType) {
-      case "url":
-        return !a.url || !a.url.trim();
-      case "email":
-        return !a.email || !a.email.trim();
-      case "phone":
-        return !a.phone || !a.phone.trim();
-      case "page":
-        return a.pageNumber == null;
-    }
-  };
-
-  const closeLinkModal = useCallback(() => {
-    setEditingLinkId((id) => {
-      if (!id) return null;
-      // Auto-delete a link that was never given a target.
-      setAnnotations((prev) => {
-        const ann = prev.find((x) => x.id === id);
-        if (ann && ann.type === "link" && isLinkUseless(ann)) {
-          return prev.filter((x) => x.id !== id);
-        }
-        return prev;
-      });
-      return null;
-    });
-  }, []);
-
-  const deleteLinkFromModal = useCallback(() => {
-    if (!editingLinkId) return;
-    pushHistory();
-    setAnnotations((prev) => prev.filter((a) => a.id !== editingLinkId));
-    setEditingLinkId(null);
-  }, [editingLinkId, pushHistory]);
-
   const deleteAnnotation = useCallback(
     (id: string) => {
       pushHistory();
       setAnnotations((prev) => prev.filter((a) => a.id !== id));
       if (activeTextIdRef.current === id) setActiveTextId(null);
+      setSelectedAnnotationId((cur) => (cur === id ? null : cur));
     },
     [pushHistory]
   );
@@ -482,6 +421,25 @@ export default function PDFEditor() {
             };
           }
           return { ...a, x: a.x + dx, y: a.y + dy };
+        })
+      );
+    },
+    [pushHistory]
+  );
+
+  /** Update a rectangular annotation's bounds — used by the corner
+   *  resize handles on X / Check marks. */
+  const resizeAnnotation = useCallback(
+    (
+      id: string,
+      rect: { x: number; y: number; width: number; height: number }
+    ) => {
+      pushHistory();
+      setAnnotations((prev) =>
+        prev.map((a) => {
+          if (a.id !== id) return a;
+          if (a.type === "draw" || a.type === "text") return a;
+          return { ...a, x: rect.x, y: rect.y, width: rect.width, height: rect.height };
         })
       );
     },
@@ -628,13 +586,22 @@ export default function PDFEditor() {
     setMatches([]);
     setCurrentMatchIndex(-1);
     setActiveTextId(null);
+    setSelectedAnnotationId(null);
     setPrimaryFileName("");
     setHasOpenedAnyPdf(false);
     setTool("select");
     textCacheRef.current.clear();
   };
 
-  /** Step 1 — generate the edited PDF bytes and stash them in state. */
+  /**
+   * Save Changes → Preview Page flow.
+   *
+   * Generates the exported PDF bytes, creates a blob URL, and opens a
+   * full-screen Preview overlay. From the overlay the user can:
+   *   - Download / Print / Email / Share (final actions)
+   *   - X close → return to the editor with edits intact
+   *   - ✓ confirm → trigger Download and close
+   */
   const saveChanges = async () => {
     if (pages.length === 0) return;
     deactivateText();
@@ -652,8 +619,19 @@ export default function PDFEditor() {
         scale: SCALE,
       });
       const base = primaryFileName.replace(/\.pdf$/i, "") || "edited";
+      const fileName = `${base}-edited.pdf`;
       setSavedBytes(bytes);
-      setSavedFileName(`${base}-edited.pdf`);
+      setSavedFileName(fileName);
+
+      // Build a blob URL for the read-only preview iframe.
+      const blob = new Blob([new Uint8Array(bytes)], {
+        type: "application/pdf",
+      });
+      // Revoke any previous preview URL.
+      setPreviewUrl((old) => {
+        if (old) URL.revokeObjectURL(old);
+        return URL.createObjectURL(blob);
+      });
     } catch (err) {
       console.error(err);
       setError("Could not save changes. Please try again.");
@@ -662,12 +640,118 @@ export default function PDFEditor() {
     }
   };
 
-  /** Print the current PDF directly from the browser. */
+  /** Close the preview overlay, returning to the editor. */
+  const closePreview = useCallback(() => {
+    setPreviewUrl((old) => {
+      if (old) URL.revokeObjectURL(old);
+      return null;
+    });
+  }, []);
+
+  /**
+   * Browser back-button integration for the Preview overlay.
+   *
+   * When the preview opens we push a synthetic history entry tagged
+   * `getpdftool-preview`. Pressing the browser back button fires a
+   * `popstate` — we intercept that and close the overlay instead of
+   * letting the navigation leave the page.
+   *
+   * If the user closes the preview via the in-app X / ✓ buttons, we
+   * call history.back() ONCE to consume the synthetic entry so the
+   * browser history stays clean.
+   */
+  useEffect(() => {
+    if (!previewUrl) return;
+    // Mark this synthetic entry so we can distinguish it from a true
+    // user back-nav out of the page.
+    const stateTag = { getpdftoolPreview: true } as const;
+    window.history.pushState(stateTag, "", window.location.href);
+
+    let consumedByPopstate = false;
+    const onPop = () => {
+      // Browser back was pressed → close preview (but DO NOT go back
+      // again, the popstate has already consumed the synthetic entry).
+      consumedByPopstate = true;
+      setPreviewUrl((old) => {
+        if (old) URL.revokeObjectURL(old);
+        return null;
+      });
+    };
+    window.addEventListener("popstate", onPop);
+
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      // If the overlay closed via the X / ✓ buttons (not popstate),
+      // consume the synthetic entry so back-button still works
+      // predictably on subsequent opens.
+      if (!consumedByPopstate) {
+        // Only step back if the current entry is still our tag.
+        const cur = window.history.state as
+          | { getpdftoolPreview?: boolean }
+          | null;
+        if (cur && cur.getpdftoolPreview) {
+          window.history.back();
+        }
+      }
+    };
+  }, [previewUrl]);
+
+  /**
+   * Warn the user before they navigate away (refresh / close tab / back
+   * to Google) if they have unsaved edits. The browser shows its own
+   * generic "Leave site?" prompt — we can't customise the message in
+   * modern browsers, but the prompt itself keeps them in the app.
+   */
+  useEffect(() => {
+    const hasUnsavedWork =
+      annotations.length > 0 || history.length > 0 || pages.length > 0;
+    if (!hasUnsavedWork) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      // Chrome requires returnValue to be set.
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [annotations.length, history.length, pages.length]);
+
+  /**
+   * Print the current edits.
+   *
+   * Chrome's hidden-iframe print trick is unreliable for PDF blobs — the
+   * PDF viewer runs in a separate process and `iframe.contentWindow.print()`
+   * frequently no-ops. The robust pattern used by Smallpdf, iLovePDF,
+   * and Acrobat Online is to open the PDF in a NEW TAB (where the
+   * browser's native PDF viewer renders it) and auto-call `print()` on
+   * the new window once it loads. The native PDF viewer also has its
+   * own visible Print button as a manual fallback.
+   *
+   * Critical: window.open MUST be called synchronously inside the click
+   * handler, otherwise the popup blocker kicks in. We open a blank
+   * window first, then navigate it once the bytes are ready.
+   */
   const printPdf = async () => {
     if (pages.length === 0) return;
     deactivateText();
-    setExporting(true);
     setError(null);
+
+    // Open the popup SYNCHRONOUSLY — inside the user-gesture stack —
+    // so the browser's popup blocker doesn't intervene.
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      setError(
+        "Your browser blocked the print popup. Please allow popups for getpdftool.com, or use Save Changes → Print from the preview."
+      );
+      return;
+    }
+    // Friendly loading state while we build the PDF.
+    printWindow.document.write(
+      '<!doctype html><html><head><title>Preparing print…</title>' +
+        '<style>body{margin:0;font:14px -apple-system,Segoe UI,sans-serif;color:#374151;display:flex;align-items:center;justify-content:center;height:100vh}</style>' +
+        '</head><body>Preparing your PDF for printing…</body></html>'
+    );
+
+    setExporting(true);
     try {
       const sourcesForExport = new Map<string, Uint8Array>();
       for (const [id, src] of sources.entries()) {
@@ -683,111 +767,65 @@ export default function PDFEditor() {
         type: "application/pdf",
       });
       const url = URL.createObjectURL(blob);
-      // Hidden iframe so the page itself doesn't navigate.
-      const iframe = document.createElement("iframe");
-      iframe.style.cssText =
-        "position: fixed; right: 0; bottom: 0; width: 0; height: 0; border: 0;";
-      iframe.src = url;
-      iframe.onload = () => {
-        try {
-          iframe.contentWindow?.focus();
-          iframe.contentWindow?.print();
-        } catch (err) {
-          console.error(err);
-        }
-        // Give the print dialog 60s before tearing down.
-        setTimeout(() => {
+
+      // Navigate the popup to the PDF blob URL and attempt auto-print.
+      // The native PDF viewer also exposes its own Print button so the
+      // user always has a manual fallback.
+      printWindow.addEventListener(
+        "load",
+        () => {
           try {
-            document.body.removeChild(iframe);
-          } catch {
-            /* already gone */
+            printWindow.focus();
+            printWindow.print();
+          } catch (err) {
+            console.warn(
+              "Auto-print failed; user can use the PDF viewer's Print button.",
+              err
+            );
           }
-          URL.revokeObjectURL(url);
-        }, 60_000);
-      };
-      document.body.appendChild(iframe);
+        },
+        { once: true }
+      );
+      printWindow.location.href = url;
+      // Release the blob URL after a generous delay — the new tab
+      // continues to hold a reference, so this just clears the original.
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (err) {
       console.error(err);
-      setError(
-        "Could not open the print dialog. Try Save Changes then Download, then print from your browser."
-      );
+      try {
+        printWindow.close();
+      } catch {
+        /* noop */
+      }
+      setError("Could not prepare the PDF for printing. Please try again.");
     } finally {
       setExporting(false);
     }
   };
 
-  /** Build a File object from the saved bytes (or null if not saved). */
-  const buildSavedFile = useCallback((): File | null => {
-    if (!savedBytes) return null;
-    const blob = new Blob([new Uint8Array(savedBytes)], {
-      type: "application/pdf",
-    });
-    return new File([blob], savedFileName || "edited.pdf", {
-      type: "application/pdf",
-    });
+  /** Download the saved PDF via the shared helper. */
+  const downloadSavedFile = useCallback(() => {
+    if (!savedBytes) return;
+    downloadFile(savedBytes, savedFileName || "edited.pdf");
   }, [savedBytes, savedFileName]);
 
-  /** Step 2 — actually trigger the browser download. */
-  const downloadSavedFile = useCallback(() => {
-    const file = buildSavedFile();
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = file.name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }, [buildSavedFile]);
-
-  /** Share the saved file using the system share sheet (Web Share API). */
-  const shareSavedFile = useCallback(async () => {
-    const file = buildSavedFile();
-    if (!file) return;
-    const nav = navigator as Navigator & {
-      canShare?: (data: ShareData) => boolean;
-    };
-    if (
-      typeof nav.share === "function" &&
-      typeof nav.canShare === "function" &&
-      nav.canShare({ files: [file] })
-    ) {
-      try {
-        await nav.share({
-          title: file.name,
-          text: "Edited with GetPDFTool",
-          files: [file],
-        });
-      } catch (err) {
-        // User-cancelled share is normal; ignore.
-        if ((err as Error).name !== "AbortError") {
-          console.error(err);
-          setError("Could not open the share menu. Please try Download instead.");
-        }
-      }
-    } else {
-      setError(
-        "Sharing isn't supported in this browser. Please download the file and share it from your computer."
-      );
-    }
-  }, [buildSavedFile]);
-
-  /**
-   * Open the user's email client with a pre-filled message and download
-   * the file, since the mailto: protocol cannot carry attachments.
-   */
-  const emailSavedFile = useCallback(() => {
+  /** Print the saved PDF via the shared helper. */
+  const printSavedFile = useCallback(() => {
     if (!savedBytes) return;
-    downloadSavedFile();
-    const subject = encodeURIComponent(
-      `Edited PDF — ${savedFileName || "edited.pdf"}`
+    const err = printFile(savedBytes, savedFileName || "edited.pdf");
+    if (err) setError(err);
+  }, [savedBytes, savedFileName]);
+
+  /** Share the saved PDF via the shared helper. */
+  const shareSavedFile = useCallback(async () => {
+    if (!savedBytes) return;
+    const err = await shareFile(
+      savedBytes,
+      savedFileName || "edited.pdf",
+      "Edited with GetPDFTool"
     );
-    const body = encodeURIComponent(
-      `Hi,\n\nPlease find the edited PDF attached.\n\nNote: the file has just been downloaded to your computer. Please attach it from your Downloads folder before sending.\n\nEdited with GetPDFTool — https://www.getpdftool.com`
-    );
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
-  }, [savedBytes, savedFileName, downloadSavedFile]);
+    if (err) setError(err);
+  }, [savedBytes, savedFileName]);
 
   // Any further edit invalidates the previously-saved bytes.
   useEffect(() => {
@@ -821,31 +859,6 @@ export default function PDFEditor() {
     },
     [pages, sources]
   );
-
-  // When text-editor tool is active, load text items for every text-based
-  // page so the dotted overlays can render.
-  useEffect(() => {
-    if (tool !== "text-editor") {
-      // Clear cached display items so we don't keep stale boxes around.
-      if (textItemsByPage.size > 0) setTextItemsByPage(new Map());
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      const next = new Map<number, TextItem[]>();
-      for (let i = 0; i < pages.length; i++) {
-        const items = await getPageText(i);
-        if (cancelled) return;
-        if (items.length > 0) next.set(i, items);
-      }
-      if (!cancelled) setTextItemsByPage(next);
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // textItemsByPage intentionally excluded — it's the output of this effect.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, pages, getPageText]);
 
   const scrollToMatch = useCallback((m: SearchMatch) => {
     const node = document.querySelector<HTMLElement>(
@@ -1090,6 +1103,7 @@ export default function PDFEditor() {
   const showTextStyleControls = tool === "text" || activeTextId !== null;
   const showShapeColor = tool === "draw" || tool === "rectangle";
   const showShapeStroke = tool === "draw" || tool === "rectangle";
+  const showMarkStyle = tool === "cross" || tool === "check";
 
   return (
     <div className="container-narrow py-6">
@@ -1128,12 +1142,6 @@ export default function PDFEditor() {
               </button>
             </div>
             <ToolBtn
-              active={tool === "text-editor"}
-              icon="✎"
-              label="Text Editor"
-              onClick={() => setTool("text-editor")}
-            />
-            <ToolBtn
               active={tool === "draw"}
               icon="✏"
               label="Draw"
@@ -1156,12 +1164,6 @@ export default function PDFEditor() {
               icon="⬜"
               label="Whiteout"
               onClick={() => setTool("whiteout")}
-            />
-            <ToolBtn
-              active={tool === "link"}
-              icon="🔗"
-              label="Link"
-              onClick={() => setTool("link")}
             />
             <ToolBtn
               active={tool === "cross"}
@@ -1285,6 +1287,46 @@ export default function PDFEditor() {
             </div>
           )}
 
+          {/* X / Check mark style — defaults to black, gives a full
+              color palette so the user can pick red, blue, etc., and a
+              stroke-width slider so the mark can be made bold or thin. */}
+          {showMarkStyle && (
+            <>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-medium text-gray-500">Color</span>
+                {SHAPE_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setMarkColor(c)}
+                    className={`h-6 w-6 rounded-full border-2 transition ${
+                      markColor === c
+                        ? "border-brand-500 ring-2 ring-brand-200"
+                        : "border-gray-200"
+                    }`}
+                    style={{ backgroundColor: c }}
+                    title={c}
+                    aria-label={`Mark color ${c}`}
+                  />
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-gray-500">Stroke</span>
+                <input
+                  type="range"
+                  min={1}
+                  max={10}
+                  value={markStrokeWidth}
+                  onChange={(e) => setMarkStrokeWidth(Number(e.target.value))}
+                  className="w-24"
+                />
+                <span className="w-6 text-xs text-gray-700">
+                  {markStrokeWidth}
+                </span>
+              </div>
+            </>
+          )}
+
           <div className="ml-auto flex items-center gap-2">
             {/* Zoom controls */}
             <div className="flex items-center overflow-hidden rounded-lg border border-gray-200 bg-white">
@@ -1322,15 +1364,57 @@ export default function PDFEditor() {
                 addPagesFromFile(pages.length - 1, "below", file)
               }
             />
-            <button
-              type="button"
-              onClick={undo}
-              className="btn-ghost"
-              disabled={history.length === 0}
-              title="Undo (⌘Z / Ctrl+Z)"
-            >
-              ↶ Undo
-            </button>
+            {/* Undo / Redo — always visible, large, paired. */}
+            <div className="flex items-stretch overflow-hidden rounded-xl border border-ink-200 bg-white shadow-soft">
+              <button
+                type="button"
+                onClick={undo}
+                disabled={history.length === 0}
+                className="flex items-center gap-1.5 px-3 py-2.5 text-sm font-semibold text-ink-700 transition hover:bg-brand-50 hover:text-brand-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-ink-700"
+                title="Undo (⌘Z / Ctrl+Z)"
+                aria-label="Undo"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-4 w-4"
+                  aria-hidden="true"
+                >
+                  <path d="M3 7v6h6" />
+                  <path d="M21 17a9 9 0 0 0-15-6.7L3 13" />
+                </svg>
+                Undo
+              </button>
+              <button
+                type="button"
+                onClick={redo}
+                disabled={redoStack.length === 0}
+                className="flex items-center gap-1.5 border-l border-ink-200 px-3 py-2.5 text-sm font-semibold text-ink-700 transition hover:bg-brand-50 hover:text-brand-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-ink-700"
+                title="Redo (⇧⌘Z / Ctrl+Shift+Z)"
+                aria-label="Redo"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-4 w-4"
+                  aria-hidden="true"
+                >
+                  <path d="M21 7v6h-6" />
+                  <path d="M3 17a9 9 0 0 1 15-6.7L21 13" />
+                </svg>
+                Redo
+              </button>
+            </div>
             <button type="button" onClick={reset} className="btn-ghost">
               ✕ New PDF
             </button>
@@ -1346,44 +1430,12 @@ export default function PDFEditor() {
             <button
               type="button"
               onClick={saveChanges}
-              disabled={exporting || pages.length === 0 || !!savedBytes}
+              disabled={exporting || pages.length === 0}
               className="btn-primary"
-              title={savedBytes ? "All edits saved" : "Save your edits"}
+              title="Save your edits and preview the final PDF"
             >
-              {exporting
-                ? "Saving…"
-                : savedBytes
-                  ? "✓ Saved"
-                  : "💾 Save Changes"}
+              {exporting ? "Saving…" : "💾 Save Changes"}
             </button>
-            {savedBytes && (
-              <div className="flex items-stretch overflow-hidden rounded-xl bg-emerald-600 text-white shadow-soft">
-                <button
-                  type="button"
-                  onClick={downloadSavedFile}
-                  className="flex items-center gap-1.5 px-4 py-3 text-sm font-semibold transition hover:bg-emerald-700"
-                  title="Download to your computer"
-                >
-                  ↓ Download
-                </button>
-                <button
-                  type="button"
-                  onClick={shareSavedFile}
-                  className="flex items-center gap-1.5 border-l border-emerald-500 px-3 py-3 text-sm font-semibold transition hover:bg-emerald-700"
-                  title="Share via your device's share menu"
-                >
-                  📤 Share
-                </button>
-                <button
-                  type="button"
-                  onClick={emailSavedFile}
-                  className="flex items-center gap-1.5 border-l border-emerald-500 px-3 py-3 text-sm font-semibold transition hover:bg-emerald-700"
-                  title="Open your email app to send this file"
-                >
-                  ✉ Email
-                </button>
-              </div>
-            )}
           </div>
         </div>
 
@@ -1420,10 +1472,10 @@ export default function PDFEditor() {
               to move it.
             </span>
           )}
-          {tool === "link" && (
+          {(tool === "cross" || tool === "check") && (
             <span className="ml-3 text-brand-700">
-              Drag an area to make it a clickable link. Click an existing link
-              to edit its target.
+              Click anywhere to drop a mark. Drag its dashed box to move,
+              drag a corner handle to resize.
             </span>
           )}
         </p>
@@ -1473,20 +1525,21 @@ export default function PDFEditor() {
               defaultUnderline={textUnderline}
               shapeColor={shapeColor}
               shapeStrokeWidth={shapeStrokeWidth}
+              markColor={markColor}
+              markStrokeWidth={markStrokeWidth}
               searchHighlights={highlightsByPage.get(i)}
               activeTextId={activeTextId}
-              textItems={
-                tool === "text-editor" ? textItemsByPage.get(i) : undefined
-              }
               onAddAnnotation={addAnnotation}
               onAddTextAndActivate={addTextAndActivate}
-              onAddLinkAndEdit={addLinkAndEdit}
-              onEditLink={editLink}
-              onEditTextItem={editTextItem}
+              onResizeAnnotation={resizeAnnotation}
               onDeleteAnnotation={deleteAnnotation}
               onMoveAnnotation={moveAnnotation}
               onUpdateText={updateText}
               onActivateText={activateText}
+              onFinalizeText={deactivateText}
+              onResetToSelect={() => setTool("select")}
+              selectedAnnotationId={selectedAnnotationId}
+              onSelectAnnotation={setSelectedAnnotationId}
               onRotate={() => rotatePage(i)}
               onDelete={() => deletePage(i)}
               highlight={justAddedIndex === i}
@@ -1503,21 +1556,6 @@ export default function PDFEditor() {
           );
         })}
       </div>
-
-      <LinkPropertiesModal
-        open={editingLinkId !== null}
-        annotation={
-          (annotations.find(
-            (a) => a.id === editingLinkId && a.type === "link"
-          ) as LinkAnnotation | undefined) ?? null
-        }
-        totalPages={pages.length}
-        onSave={(patch) => {
-          if (editingLinkId) updateLinkAnnotation(editingLinkId, patch);
-        }}
-        onDelete={deleteLinkFromModal}
-        onClose={closeLinkModal}
-      />
 
       <FindReplaceModal
         open={findOpen}
@@ -1540,6 +1578,21 @@ export default function PDFEditor() {
         hasTextPages={hasTextPages}
         busy={searchBusy}
       />
+
+      {previewUrl && (
+        <PreviewOverlay
+          url={previewUrl}
+          fileName={savedFileName}
+          onClose={closePreview}
+          onConfirm={() => {
+            downloadSavedFile();
+            closePreview();
+          }}
+          onDownload={downloadSavedFile}
+          onPrint={printSavedFile}
+          onShare={shareSavedFile}
+        />
+      )}
     </div>
   );
 }
@@ -1634,6 +1687,179 @@ function ColorSwatchPopover({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ============================================================================
+// Preview Overlay — full-screen read-only PDF preview shown after the user
+// clicks "Save Changes". Uses an <iframe src={blob:…}> so the browser's
+// native PDF viewer renders the file (pixel-accurate to what the user will
+// download). Provides Download / Print / Share + an X (back to editor) and
+// ✓ (confirm + download) header.
+// ============================================================================
+
+function PreviewOverlay({
+  url,
+  fileName,
+  onClose,
+  onConfirm,
+  onDownload,
+  onPrint,
+  onShare,
+}: {
+  url: string;
+  fileName: string;
+  onClose: () => void;
+  onConfirm: () => void;
+  onDownload: () => void;
+  onPrint: () => void;
+  onShare: () => void;
+}) {
+  // Esc closes the preview.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex flex-col bg-ink-900/95 backdrop-blur"
+      role="dialog"
+      aria-modal="true"
+      aria-label="PDF preview"
+    >
+      {/* Header */}
+      <header className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3 sm:px-6">
+        <div className="flex items-center gap-3 min-w-0">
+          {/* "Back to Edit" — labelled prominently so the user always
+              knows how to get back to editing. The X icon on the right
+              of the header is now redundant but kept for keyboard /
+              touch convenience. */}
+          <button
+            type="button"
+            onClick={onClose}
+            title="Back to editor (Esc) — your edits are preserved"
+            className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/20"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-4 w-4"
+              aria-hidden="true"
+            >
+              <line x1="19" y1="12" x2="5" y2="12" />
+              <polyline points="12 19 5 12 12 5" />
+            </svg>
+            Back to Edit
+          </button>
+          <div className="min-w-0 hidden sm:block">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-white/60">
+              Preview · read-only
+            </div>
+            <div className="truncate text-sm font-medium text-white">
+              {fileName}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Action buttons */}
+          <button
+            type="button"
+            onClick={onDownload}
+            className="hidden sm:inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/20"
+            title="Download to your computer"
+          >
+            <span aria-hidden="true">↓</span> Download
+          </button>
+          <button
+            type="button"
+            onClick={onPrint}
+            className="hidden sm:inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/20"
+            title="Open the PDF and print it"
+          >
+            <span aria-hidden="true">🖨</span> Print
+          </button>
+          <button
+            type="button"
+            onClick={onShare}
+            className="hidden md:inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/20"
+            title="Share via WhatsApp / Mail / system share menu"
+          >
+            <span aria-hidden="true">📤</span> Share
+          </button>
+
+          {/* Confirm — auto-download then close. */}
+          <button
+            type="button"
+            onClick={onConfirm}
+            aria-label="Confirm and download"
+            title="Looks good — download now"
+            className="grid h-10 w-10 place-items-center rounded-full bg-emerald-500 text-white transition hover:bg-emerald-600"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-5 w-5"
+              aria-hidden="true"
+            >
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      {/* Mobile-only action row — keeps Download/Print/Share visible on small screens. */}
+      <div className="flex items-center gap-2 overflow-x-auto border-b border-white/10 px-4 py-2 sm:hidden">
+        <button
+          type="button"
+          onClick={onDownload}
+          title="Download to your computer"
+          className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold text-white"
+        >
+          ↓ Download
+        </button>
+        <button
+          type="button"
+          onClick={onPrint}
+          title="Open the PDF and print it"
+          className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold text-white"
+        >
+          🖨 Print
+        </button>
+        <button
+          type="button"
+          onClick={onShare}
+          title="Share via WhatsApp / Mail / system share menu"
+          className="flex-shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-2 text-xs font-semibold text-white"
+        >
+          📤 Share
+        </button>
+      </div>
+
+      {/* PDF preview body — iframe pointed at the blob URL. */}
+      <div className="flex-1 overflow-hidden bg-ink-800">
+        <iframe
+          id="preview-pdf-iframe"
+          src={url}
+          title="PDF preview"
+          className="h-full w-full border-0"
+        />
+      </div>
     </div>
   );
 }

@@ -1,18 +1,33 @@
 export type ToolKind =
   | "select"
   | "text"
-  | "text-editor"
   | "draw"
   | "highlight"
   | "rectangle"
   | "whiteout"
-  | "link"
   | "cross"
   | "check"
   | "eraser";
 
 export type Color = string;
-export type FontFamily = "helvetica" | "times" | "courier";
+/**
+ * Font families offered by the text editor.
+ *
+ *   helvetica / times / courier — pdf-lib StandardFonts (no embed needed,
+ *   ~0 KB overhead per PDF).
+ *   roboto / poppins            — Google Fonts embedded at export time via
+ *   @pdf-lib/fontkit; TTF files live in /public/fonts.
+ *
+ * UI labels (Arial, Times New Roman, Courier New, Roboto, Poppins) are
+ * shown via FONT_LABELS — the standard-font internal names are kept for
+ * stable serialisation.
+ */
+export type FontFamily =
+  | "helvetica"
+  | "times"
+  | "courier"
+  | "roboto"
+  | "poppins";
 
 export type TextAnnotation = {
   id: string;
@@ -34,9 +49,11 @@ export const FONT_SIZES = [
 ] as const;
 
 export const FONT_LABELS: Record<FontFamily, string> = {
-  helvetica: "Sans Serif",
-  times: "Serif",
-  courier: "Monospace",
+  helvetica: "Arial",
+  times: "Times New Roman",
+  courier: "Courier New",
+  roboto: "Roboto",
+  poppins: "Poppins",
 };
 
 export const TEXT_COLOR_PALETTE = [
@@ -79,7 +96,11 @@ export type RectangleAnnotation = {
   strokeWidth: number;
 };
 
-/** Solid white box used to cover existing PDF content. */
+/**
+ * Solid box used to cover existing PDF content. Defaults to white, but the
+ * Text Editor samples the background colour from the rendered page so the
+ * box blends in when the original text sits on a coloured banner.
+ */
 export type WhiteoutAnnotation = {
   id: string;
   type: "whiteout";
@@ -88,29 +109,8 @@ export type WhiteoutAnnotation = {
   y: number;
   width: number;
   height: number;
-};
-
-export type LinkTargetType = "url" | "email" | "phone" | "page";
-
-/** Clickable hyperlink area. Renders invisible in the exported PDF, but
- * shows a dashed brand-coloured outline in the editor. */
-export type LinkAnnotation = {
-  id: string;
-  type: "link";
-  pageIndex: number;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  linkType: LinkTargetType;
-  /** Used when linkType === "url". */
-  url?: string;
-  /** Used when linkType === "email". */
-  email?: string;
-  /** Used when linkType === "phone". */
-  phone?: string;
-  /** Used when linkType === "page" (1-indexed display page number). */
-  pageNumber?: number;
+  /** Hex string. Optional — defaults to white in the renderer and export. */
+  color?: string;
 };
 
 /** Form-fill marks: a cross (X) or a check (✓) drawn as line strokes. */
@@ -133,7 +133,6 @@ export type Annotation =
   | HighlightAnnotation
   | RectangleAnnotation
   | WhiteoutAnnotation
-  | LinkAnnotation
   | MarkAnnotation;
 
 export type Rotation = 0 | 90 | 180 | 270;

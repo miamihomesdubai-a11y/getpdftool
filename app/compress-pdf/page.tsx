@@ -2,6 +2,11 @@ import dynamic from "next/dynamic";
 import type { Metadata } from "next";
 import AdSlot from "@/components/AdSlot";
 import RelatedTools from "@/components/RelatedTools";
+import {
+  breadcrumbJsonLd,
+  howToJsonLd,
+  ldScriptProps,
+} from "@/lib/seo";
 
 const CompressTool = dynamic(() => import("@/components/CompressTool"), {
   ssr: false,
@@ -111,6 +116,33 @@ const softwareJsonLd = {
   ],
 };
 
+const howToData = howToJsonLd({
+  name: "How to compress a PDF online for free",
+  description:
+    "Shrink PDF files with GetPDFTool's free online compressor — choose a quality level and download the smaller file.",
+  url: PAGE_URL,
+  totalTimeISO: "PT1M",
+  steps: [
+    {
+      name: "Open your PDF",
+      text: "Drop a PDF on the page or pick one from your computer. We immediately show its size.",
+    },
+    {
+      name: "Pick a level",
+      text: "High quality (keeps text), Recommended (balanced), or Smallest size (most savings).",
+    },
+    {
+      name: "Compress & download",
+      text: "Click Compress PDF, see the new size and savings, then Download — or Share / Email.",
+    },
+  ],
+});
+
+const breadcrumbData = breadcrumbJsonLd([
+  { name: "Home", url: "https://www.getpdftool.com" },
+  { name: "Compress PDF", url: PAGE_URL },
+]);
+
 const FEATURES = [
   {
     icon: "🗜",
@@ -155,6 +187,8 @@ export default function CompressPdfPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }}
       />
+      <script {...ldScriptProps(howToData)} />
+      <script {...ldScriptProps(breadcrumbData)} />
 
       <section className="container-narrow pb-2 pt-10 sm:pt-14">
         <div className="text-center">

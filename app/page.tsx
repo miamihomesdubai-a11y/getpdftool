@@ -3,6 +3,13 @@ import AdSlot from "@/components/AdSlot";
 import RelatedTools from "@/components/RelatedTools";
 import ConvertFromTools from "@/components/ConvertFromTools";
 import ConvertToTools from "@/components/ConvertToTools";
+import {
+  breadcrumbJsonLd,
+  howToJsonLd,
+  ldScriptProps,
+} from "@/lib/seo";
+
+const SITE = "https://www.getpdftool.com";
 
 // PDF editor uses browser-only APIs (canvas, pdf.js worker) — disable SSR.
 const PDFEditor = dynamic(() => import("@/components/PDFEditor"), {
@@ -47,9 +54,80 @@ const FEATURES = [
   },
 ];
 
+const FAQS = [
+  {
+    q: "Is GetPDFTool really free?",
+    a: "Yes. The PDF editor is 100% free to use, with no sign-up, no trial period, and no watermarks added to your files. We pay for the site by showing relevant advertising.",
+  },
+  {
+    q: "Are my files uploaded to your servers?",
+    a: "No. Editing happens entirely inside your web browser using JavaScript. The PDF you open never leaves your device, which keeps your documents private.",
+  },
+  {
+    q: "What kinds of PDFs can I edit?",
+    a: "Most standard PDFs — including text documents, scanned pages, forms, and reports. Password-protected PDFs need to be unlocked first using your password.",
+  },
+  {
+    q: "Will my edits look the same when I download the file?",
+    a: "Yes. When you click Download, we generate a brand-new PDF that includes your text, drawings, highlights, page rotations, and deletions exactly as you arranged them.",
+  },
+  {
+    q: "Which browsers are supported?",
+    a: "Any modern browser works: Chrome, Firefox, Safari, Edge, Brave, Opera, and others. For best performance we recommend keeping your browser up to date.",
+  },
+  {
+    q: "Do you have other PDF tools?",
+    a: "Yes — and more are on the way. We are continuously adding tools such as merge, split, compress, convert, sign and many others. Check back soon.",
+  },
+];
+
+/** Schema.org JSON-LD payloads for the homepage. Powers rich
+ *  snippets: FAQ accordions, HowTo step-by-step, and breadcrumb path
+ *  in Google's SERP. */
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: FAQS.map((f) => ({
+    "@type": "Question",
+    name: f.q,
+    acceptedAnswer: { "@type": "Answer", text: f.a },
+  })),
+};
+
+const howToData = howToJsonLd({
+  name: "How to edit a PDF online for free",
+  description:
+    "Edit any PDF in your browser with GetPDFTool — add text, draw, highlight, rotate or delete pages, then download the edited PDF.",
+  url: SITE,
+  totalTimeISO: "PT1M",
+  steps: [
+    {
+      name: "Open your PDF",
+      text: "Drag and drop a PDF onto the editor, or pick a file from your computer.",
+    },
+    {
+      name: "Edit with the toolbar",
+      text: "Use the toolbar to add text, draw, highlight, rotate, or delete pages.",
+    },
+    {
+      name: "Save and download",
+      text: "Click Save Changes to preview, then Download to save the edited PDF to your device.",
+    },
+  ],
+});
+
+const breadcrumbData = breadcrumbJsonLd([
+  { name: "Home", url: SITE },
+]);
+
 export default function HomePage() {
   return (
     <>
+      {/* Page-level structured data */}
+      <script {...ldScriptProps(faqJsonLd)} />
+      <script {...ldScriptProps(howToData)} />
+      <script {...ldScriptProps(breadcrumbData)} />
+
       {/* Hero */}
       <section className="bg-deco container-narrow relative pb-4 pt-12 sm:pt-16">
         <div className="relative z-10 text-center">
@@ -57,14 +135,14 @@ export default function HomePage() {
             <span aria-hidden="true">★</span> All Free PDF Editor Plus More
           </span>
           <h1 className="mt-5 text-5xl font-extrabold tracking-tighter text-ink-900 sm:text-6xl lg:text-7xl">
-            <span className="block">Edit any PDF—</span>
-            <span className="block text-brand-600">right in your browser</span>
+            <span className="block">Free online PDF editor —</span>
+            <span className="block text-brand-600">edit any PDF in your browser</span>
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-ink-600 sm:text-lg">
-            Add text, draw, highlight, rotate or delete pages, and download
-            the edited PDF.
+            Add text, draw, highlight, rotate or delete pages, sign, merge,
+            compress and convert PDFs — then download.
             <br className="hidden sm:block" />
-            No sign-up. No watermarks. Files stay on your device.
+            No sign-up. No watermarks. No upload — files stay on your device.
           </p>
         </div>
       </section>
@@ -206,30 +284,3 @@ export default function HomePage() {
     </>
   );
 }
-
-const FAQS = [
-  {
-    q: "Is GetPDFTool really free?",
-    a: "Yes. The PDF editor is 100% free to use, with no sign-up, no trial period, and no watermarks added to your files. We pay for the site by showing relevant advertising.",
-  },
-  {
-    q: "Are my files uploaded to your servers?",
-    a: "No. Editing happens entirely inside your web browser using JavaScript. The PDF you open never leaves your device, which keeps your documents private.",
-  },
-  {
-    q: "What kinds of PDFs can I edit?",
-    a: "Most standard PDFs — including text documents, scanned pages, forms, and reports. Password-protected PDFs need to be unlocked first using your password.",
-  },
-  {
-    q: "Will my edits look the same when I download the file?",
-    a: "Yes. When you click Download, we generate a brand-new PDF that includes your text, drawings, highlights, page rotations, and deletions exactly as you arranged them.",
-  },
-  {
-    q: "Which browsers are supported?",
-    a: "Any modern browser works: Chrome, Firefox, Safari, Edge, Brave, Opera, and others. For best performance we recommend keeping your browser up to date.",
-  },
-  {
-    q: "Do you have other PDF tools?",
-    a: "Yes — and more are on the way. We are continuously adding tools such as merge, split, compress, convert, sign and many others. Check back soon.",
-  },
-];

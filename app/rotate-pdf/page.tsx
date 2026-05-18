@@ -2,6 +2,11 @@ import dynamic from "next/dynamic";
 import type { Metadata } from "next";
 import AdSlot from "@/components/AdSlot";
 import RelatedTools from "@/components/RelatedTools";
+import {
+  breadcrumbJsonLd,
+  howToJsonLd,
+  ldScriptProps,
+} from "@/lib/seo";
 
 const OrganiseTool = dynamic(() => import("@/components/OrganiseTool"), {
   ssr: false,
@@ -100,6 +105,33 @@ const softwareJsonLd = {
   ],
 };
 
+const howToData = howToJsonLd({
+  name: "How to rotate a PDF online for free",
+  description:
+    "Rotate one page or every page of a PDF with GetPDFTool's free online PDF rotator.",
+  url: PAGE_URL,
+  totalTimeISO: "PT1M",
+  steps: [
+    {
+      name: "Open your PDF",
+      text: "Drop a PDF on the page or pick one from your computer.",
+    },
+    {
+      name: "Click ↻ or ↺",
+      text: "Hover any thumbnail and use the rotate buttons. Each click is 90°. Select multiple pages first to rotate them together.",
+    },
+    {
+      name: "Save and download",
+      text: "Click Save Changes, then Download the rotated PDF.",
+    },
+  ],
+});
+
+const breadcrumbData = breadcrumbJsonLd([
+  { name: "Home", url: "https://www.getpdftool.com" },
+  { name: "Rotate PDF", url: PAGE_URL },
+]);
+
 export default function RotatePdfPage() {
   return (
     <>
@@ -111,6 +143,8 @@ export default function RotatePdfPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }}
       />
+      <script {...ldScriptProps(howToData)} />
+      <script {...ldScriptProps(breadcrumbData)} />
 
       <section className="container-narrow pb-2 pt-10 sm:pt-14">
         <div className="text-center">

@@ -2,6 +2,41 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+  Embedded font faces for the PDF text tool. These TTFs ship from
+  /public/fonts and are referenced by both the on-screen editor (via
+  CSS) and the export pipeline (via pdf-lib + fontkit), so on-screen
+  text matches the downloaded PDF exactly.
+*/
+@font-face {
+  font-family: "Roboto";
+  src: url("/fonts/Roboto-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Roboto";
+  src: url("/fonts/Roboto-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Poppins";
+  src: url("/fonts/Poppins-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Poppins";
+  src: url("/fonts/Poppins-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @layer base {
   html {
     scroll-behavior: smooth;
@@ -115,6 +150,53 @@
   resize: none;
   overflow: hidden;
   white-space: pre;
+}
+
+/*
+  Text Editor — pdf.js TextLayer overlay.
+
+  The pdf.js TextLayer renders <span> elements that exactly match the
+  glyph positions on the rendered canvas. Normally the spans are
+  transparent (used for text selection). When the Text Editor tool is
+  active we make them faintly outlined on hover and red-dashed while
+  being edited so the user can see where the editable runs are.
+*/
+.text-layer-host {
+  /* pdf.js sets per-span absolute positioning relative to this container. */
+  text-align: initial;
+  line-height: 1;
+  overflow: hidden;
+}
+.text-layer-host span {
+  position: absolute;
+  white-space: pre;
+  color: transparent;
+  transform-origin: 0 0;
+  cursor: inherit;
+}
+.text-layer-host br {
+  display: none;
+}
+.text-layer-host--active {
+  cursor: text;
+}
+.text-layer-host--active .text-edit-span {
+  outline: 1px dotted rgba(220, 38, 38, 0.0);
+  border-radius: 2px;
+  transition: outline-color 90ms ease-out, background 90ms ease-out;
+}
+.text-layer-host--active .text-edit-span:hover {
+  outline-color: rgba(220, 38, 38, 0.7);
+  background: rgba(220, 38, 38, 0.08);
+}
+.text-layer-host--active .text-edit-span--editing,
+.text-layer-host--active .text-edit-span--editing:hover {
+  outline: 1px dashed #dc2626;
+  background: rgba(255, 255, 0, 0.25);
+  color: #111;
+  caret-color: #dc2626;
+  /* While typing, the dotted-text disappears — we paint a yellow-ish
+     box and dark text on top so the user can see what they're typing. */
 }
 
 /* Subtle pink "blob" decorations for hero/dropzone areas. */

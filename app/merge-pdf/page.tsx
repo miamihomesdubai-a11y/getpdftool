@@ -2,6 +2,11 @@ import dynamic from "next/dynamic";
 import type { Metadata } from "next";
 import AdSlot from "@/components/AdSlot";
 import RelatedTools from "@/components/RelatedTools";
+import {
+  breadcrumbJsonLd,
+  howToJsonLd,
+  ldScriptProps,
+} from "@/lib/seo";
 
 const OrganiseTool = dynamic(() => import("@/components/OrganiseTool"), {
   ssr: false,
@@ -102,6 +107,33 @@ const softwareJsonLd = {
   ],
 };
 
+const howToData = howToJsonLd({
+  name: "How to merge PDF files online for free",
+  description:
+    "Combine two or more PDF files into one document with GetPDFTool's free online PDF merger.",
+  url: PAGE_URL,
+  totalTimeISO: "PT1M",
+  steps: [
+    {
+      name: "Open your first PDF",
+      text: "Drop a PDF on the page or pick one from your computer.",
+    },
+    {
+      name: "Append the others",
+      text: "Click + Add Page → Pages from PDF… for each extra file. Drag thumbnails to reorder.",
+    },
+    {
+      name: "Save and download",
+      text: "Click Save Changes, then Download the merged PDF.",
+    },
+  ],
+});
+
+const breadcrumbData = breadcrumbJsonLd([
+  { name: "Home", url: "https://www.getpdftool.com" },
+  { name: "Merge PDF", url: PAGE_URL },
+]);
+
 export default function MergePdfPage() {
   return (
     <>
@@ -113,6 +145,8 @@ export default function MergePdfPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }}
       />
+      <script {...ldScriptProps(howToData)} />
+      <script {...ldScriptProps(breadcrumbData)} />
 
       <section className="container-narrow pb-2 pt-10 sm:pt-14">
         <div className="text-center">

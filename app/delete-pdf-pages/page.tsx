@@ -2,6 +2,11 @@ import dynamic from "next/dynamic";
 import type { Metadata } from "next";
 import AdSlot from "@/components/AdSlot";
 import RelatedTools from "@/components/RelatedTools";
+import {
+  breadcrumbJsonLd,
+  howToJsonLd,
+  ldScriptProps,
+} from "@/lib/seo";
 
 const OrganiseTool = dynamic(() => import("@/components/OrganiseTool"), {
   ssr: false,
@@ -101,6 +106,33 @@ const softwareJsonLd = {
   ],
 };
 
+const howToData = howToJsonLd({
+  name: "How to delete pages from a PDF online for free",
+  description:
+    "Remove unwanted pages from a PDF with GetPDFTool's free online PDF page remover.",
+  url: PAGE_URL,
+  totalTimeISO: "PT1M",
+  steps: [
+    {
+      name: "Open your PDF",
+      text: "Drop a PDF on the page or pick one from your computer.",
+    },
+    {
+      name: "Select & delete",
+      text: "Click pages to select. ⌘/Ctrl-click adds more. Shift-click picks a range. Then click 🗑 Delete.",
+    },
+    {
+      name: "Save and download",
+      text: "Click Save Changes, then Download the trimmed PDF.",
+    },
+  ],
+});
+
+const breadcrumbData = breadcrumbJsonLd([
+  { name: "Home", url: "https://www.getpdftool.com" },
+  { name: "Delete PDF Pages", url: PAGE_URL },
+]);
+
 export default function DeletePdfPagesPage() {
   return (
     <>
@@ -112,6 +144,8 @@ export default function DeletePdfPagesPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }}
       />
+      <script {...ldScriptProps(howToData)} />
+      <script {...ldScriptProps(breadcrumbData)} />
 
       <section className="container-narrow pb-2 pt-10 sm:pt-14">
         <div className="text-center">

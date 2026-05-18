@@ -4,9 +4,13 @@ import { useEffect, useRef } from "react";
 import type { FontFamily, TextAnnotation } from "@/lib/types";
 
 const FONT_CSS: Record<FontFamily, string> = {
-  helvetica: 'Helvetica, Arial, "Liberation Sans", sans-serif',
+  helvetica: 'Arial, Helvetica, "Liberation Sans", sans-serif',
   times: '"Times New Roman", Times, "Liberation Serif", serif',
   courier: '"Courier New", Courier, "Liberation Mono", monospace',
+  // The TTF files in /public/fonts are also loaded as web @font-face
+  // (see app/globals.css) so on-screen text matches the exported PDF.
+  roboto: 'Roboto, Arial, sans-serif',
+  poppins: 'Poppins, "Helvetica Neue", Arial, sans-serif',
 };
 
 type Props = {
@@ -18,6 +22,8 @@ type Props = {
   onDelete: () => void;
   onUpdateText: (text: string) => void;
   onMoveStart: (e: React.MouseEvent) => void;
+  /** Called when the contentEditable blurs — parent should deactivate. */
+  onFinalize: () => void;
   /** "select" | "text" | "eraser" | other — drives click behavior. */
   toolMode: "activate" | "delete" | "ignore";
 };
@@ -30,6 +36,7 @@ export default function TextAnnotationView({
   onDelete,
   onUpdateText,
   onMoveStart,
+  onFinalize,
   toolMode,
 }: Props) {
   const editorRef = useRef<HTMLDivElement>(null);
@@ -90,12 +97,23 @@ export default function TextAnnotationView({
     else if (toolMode === "activate") onActivate();
   };
 
+  /** Right-click inside an active text finalizes the edit (blur the
+   *  contenteditable, which the parent listens for to deactivate). */
+  const handleContextMenu = (e: React.MouseEvent) => {
+    if (!isActive) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const el = editorRef.current;
+    if (el) el.blur();
+  };
+
   return (
     <div
       data-text-annotation
       data-active-text={isActive ? "1" : undefined}
       style={wrapperStyle}
       onMouseDown={handleClick}
+      onContextMenu={handleContextMenu}
     >
       {/* Drag handle (only visible while active) */}
       {isActive && (
@@ -111,7 +129,12 @@ export default function TextAnnotationView({
         </div>
       )}
 
-      {/* The text itself: editable when active, plain when not. */}
+      {/*
+        The text itself: editable when active, plain when not. Both states
+        use IDENTICAL box geometry (same padding + 1px border) so the text
+        glyphs do not jump when the user commits an edit — the only thing
+        that changes is the border colour (dashed brand red ↔ transparent).
+      */}
       {isActive ? (
         <div
           ref={editorRef}
@@ -120,22 +143,62 @@ export default function TextAnnotationView({
           onInput={(e) =>
             onUpdateText((e.currentTarget as HTMLDivElement).innerText)
           }
+          onBlur={(e) => {
+            // If focus moved into the toolbar (font dropdown, bold,
+            // color picker, …) DON'T finalize — the user is changing
+            // the active text's style. The toolbar is tagged with
+            // data-keep-text-active and same for other safe zones.
+            const next = e.relatedTarget as HTMLElement | null;
+            const inToolbar =
+              next && next.closest && next.closest("[data-keep-text-active]");
+            if (inToolbar) {
+              // Native form elements (<select>) MUST keep their focus
+              // while the dropdown is open — refocusing the editor
+              // would close the dropdown instantly. For everything
+              // else (buttons, swatches) we silently steal focus back
+              // so the caret continues blinking and the user can keep
+              // typing.
+              const tag = (next as HTMLElement).tagName;
+              const isFormControl =
+                tag === "SELECT" || tag === "INPUT" || tag === "OPTION";
+              if (!isFormControl) {
+                setTimeout(() => editorRef.current?.focus(), 0);
+              }
+              return;
+            }
+            onFinalize();
+          }}
           onKeyDown={(e) => {
             // Don't let Backspace etc. bubble to global handlers.
             e.stopPropagation();
+            // Escape / Enter (without shift) finalizes the edit.
+            if (e.key === "Escape" || (e.key === "Enter" && !e.shiftKey)) {
+              e.preventDefault();
+              (e.currentTarget as HTMLDivElement).blur();
+            }
           }}
           style={{
             ...baseFontStyle,
             outline: "none",
-            border: "1px dashed #4f46e5",
+            border: "1px dashed #dc2626",
             background: "transparent",
             padding: "1px 4px",
             minWidth: 60,
             minHeight: "1em",
+            boxSizing: "border-box",
           }}
         />
       ) : (
-        <div style={baseFontStyle}>{a.text}</div>
+        <div
+          style={{
+            ...baseFontStyle,
+            border: "1px solid transparent",
+            padding: "1px 4px",
+            boxSizing: "border-box",
+          }}
+        >
+          {a.text}
+        </div>
       )}
     </div>
   );

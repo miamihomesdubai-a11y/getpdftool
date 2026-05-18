@@ -3,6 +3,11 @@ import type { Metadata } from "next";
 import AdSlot from "@/components/AdSlot";
 import RelatedTools from "@/components/RelatedTools";
 import ConvertFromTools from "@/components/ConvertFromTools";
+import {
+  breadcrumbJsonLd,
+  howToJsonLd,
+  ldScriptProps,
+} from "@/lib/seo";
 
 const ConvertFromPdfTool = dynamic(
   () => import("@/components/ConvertFromPdfTool"),
@@ -107,6 +112,33 @@ const softwareJsonLd = {
   ],
 };
 
+const howToData = howToJsonLd({
+  name: "How to convert PDF to Excel online for free",
+  description:
+    "Turn any PDF into an editable .xlsx spreadsheet with GetPDFTool's free online PDF to Excel converter.",
+  url: PAGE_URL,
+  totalTimeISO: "PT1M",
+  steps: [
+    {
+      name: "Open your PDF",
+      text: "Drop a PDF on the page or pick one from your computer.",
+    },
+    {
+      name: "Convert to Excel",
+      text: "Click Convert to Excel — each page becomes its own sheet, with lines as rows and words as cells.",
+    },
+    {
+      name: "Download & edit",
+      text: "Download the .xlsx and open it in Excel, Google Sheets, Numbers or LibreOffice Calc.",
+    },
+  ],
+});
+
+const breadcrumbData = breadcrumbJsonLd([
+  { name: "Home", url: "https://www.getpdftool.com" },
+  { name: "PDF to Excel", url: PAGE_URL },
+]);
+
 export default function PdfToExcelPage() {
   return (
     <>
@@ -118,6 +150,8 @@ export default function PdfToExcelPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }}
       />
+      <script {...ldScriptProps(howToData)} />
+      <script {...ldScriptProps(breadcrumbData)} />
 
       <section className="container-narrow pb-2 pt-10 sm:pt-14">
         <div className="text-center">

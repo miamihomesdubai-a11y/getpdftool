@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { PDFDocument, StandardFonts, degrees, rgb } from "pdf-lib";
 import { pdfjsLib } from "@/lib/pdfWorker";
+import { downloadFile, printFile, shareFile } from "@/lib/fileActions";
 
 const SCALE = 1.5;
 const MARGIN_PT = 36; // 0.5 inch from page edges
@@ -321,70 +322,27 @@ export default function WatermarkTool() {
     }
   };
 
-  // --- Download / Share / Email ---
-
-  const buildSavedFile = (): File | null => {
-    if (!savedBytes) return null;
-    const blob = new Blob([new Uint8Array(savedBytes)], {
-      type: "application/pdf",
-    });
-    return new File([blob], savedFileName || "watermarked.pdf", {
-      type: "application/pdf",
-    });
-  };
+  // --- Download / Print / Share ---
 
   const downloadSavedFile = () => {
-    const f = buildSavedFile();
-    if (!f) return;
-    const url = URL.createObjectURL(f);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = f.name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    if (!savedBytes) return;
+    downloadFile(savedBytes, savedFileName || "watermarked.pdf");
+  };
+
+  const printSavedFile = () => {
+    if (!savedBytes) return;
+    const err = printFile(savedBytes, savedFileName || "watermarked.pdf");
+    if (err) setError(err);
   };
 
   const shareSavedFile = async () => {
-    const f = buildSavedFile();
-    if (!f) return;
-    const nav = navigator as Navigator & {
-      canShare?: (data: ShareData) => boolean;
-    };
-    if (
-      typeof nav.share === "function" &&
-      typeof nav.canShare === "function" &&
-      nav.canShare({ files: [f] })
-    ) {
-      try {
-        await nav.share({
-          files: [f],
-          title: f.name,
-          text: "Watermarked with GetPDFTool",
-        });
-      } catch (err) {
-        if ((err as Error).name !== "AbortError") {
-          setError("Could not open the share menu.");
-        }
-      }
-    } else {
-      setError(
-        "Sharing isn't supported in this browser. Please download instead."
-      );
-    }
-  };
-
-  const emailSavedFile = () => {
     if (!savedBytes) return;
-    downloadSavedFile();
-    const subject = encodeURIComponent(
-      `Watermarked PDF — ${savedFileName || "watermarked.pdf"}`
+    const err = await shareFile(
+      savedBytes,
+      savedFileName || "watermarked.pdf",
+      "Watermarked with GetPDFTool"
     );
-    const body = encodeURIComponent(
-      `Hi,\n\nPlease find the watermarked PDF attached.\n\nNote: the file has just been downloaded to your computer. Please attach it from your Downloads folder before sending.\n\nWatermarked with GetPDFTool — https://www.getpdftool.com`
-    );
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+    if (err) setError(err);
   };
 
   // ===== Render =====
@@ -678,22 +636,25 @@ export default function WatermarkTool() {
                   type="button"
                   onClick={downloadSavedFile}
                   className="flex items-center gap-1.5 px-4 py-3 text-sm font-semibold transition hover:bg-emerald-700"
+                  title="Download to your computer"
                 >
                   ↓ Download
                 </button>
                 <button
                   type="button"
-                  onClick={shareSavedFile}
+                  onClick={printSavedFile}
                   className="flex items-center gap-1.5 border-l border-emerald-500 px-3 py-3 text-sm font-semibold transition hover:bg-emerald-700"
+                  title="Open the PDF and print it"
                 >
-                  📤 Share
+                  🖨 Print
                 </button>
                 <button
                   type="button"
-                  onClick={emailSavedFile}
+                  onClick={shareSavedFile}
                   className="flex items-center gap-1.5 border-l border-emerald-500 px-3 py-3 text-sm font-semibold transition hover:bg-emerald-700"
+                  title="Share via WhatsApp / Mail / system share menu"
                 >
-                  ✉ Email
+                  📤 Share
                 </button>
               </div>
             )}

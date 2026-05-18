@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { pdfjsLib } from "@/lib/pdfWorker";
+import { downloadFile, printFile, shareFile } from "@/lib/fileActions";
 import SignatureSourceModal, {
   type SignatureImage,
 } from "./SignatureSourceModal";
@@ -402,64 +403,25 @@ export default function SignPdfTool() {
     }
   };
 
-  const buildSavedFile = (): File | null => {
-    if (!savedBytes) return null;
-    const blob = new Blob([new Uint8Array(savedBytes)], {
-      type: "application/pdf",
-    });
-    return new File([blob], savedFileName || "signed.pdf", {
-      type: "application/pdf",
-    });
+  const downloadSavedFile = () => {
+    if (!savedBytes) return;
+    downloadFile(savedBytes, savedFileName || "signed.pdf");
   };
 
-  const downloadSavedFile = () => {
-    const f = buildSavedFile();
-    if (!f) return;
-    const url = URL.createObjectURL(f);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = f.name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const printSavedFile = () => {
+    if (!savedBytes) return;
+    const err = printFile(savedBytes, savedFileName || "signed.pdf");
+    if (err) setError(err);
   };
 
   const shareSavedFile = async () => {
-    const f = buildSavedFile();
-    if (!f) return;
-    const nav = navigator as Navigator & {
-      canShare?: (data: ShareData) => boolean;
-    };
-    if (
-      typeof nav.share === "function" &&
-      typeof nav.canShare === "function" &&
-      nav.canShare({ files: [f] })
-    ) {
-      try {
-        await nav.share({ files: [f], title: f.name, text: "Signed with GetPDFTool" });
-      } catch (err) {
-        if ((err as Error).name !== "AbortError") {
-          setError("Could not open the share menu.");
-        }
-      }
-    } else {
-      setError(
-        "Sharing isn't supported in this browser. Please download the file and share it manually."
-      );
-    }
-  };
-
-  const emailSavedFile = () => {
     if (!savedBytes) return;
-    downloadSavedFile();
-    const subject = encodeURIComponent(
-      `Signed PDF — ${savedFileName || "signed.pdf"}`
+    const err = await shareFile(
+      savedBytes,
+      savedFileName || "signed.pdf",
+      "Signed with GetPDFTool"
     );
-    const body = encodeURIComponent(
-      `Hi,\n\nPlease find the signed PDF attached.\n\nNote: the file has just been downloaded to your computer. Please attach it from your Downloads folder before sending.\n\nSigned with GetPDFTool — https://www.getpdftool.com`
-    );
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+    if (err) setError(err);
   };
 
   // ===== Render =====
@@ -636,22 +598,25 @@ export default function SignPdfTool() {
                   type="button"
                   onClick={downloadSavedFile}
                   className="flex items-center gap-1.5 px-4 py-3 text-sm font-semibold transition hover:bg-emerald-700"
+                  title="Download to your computer"
                 >
                   ↓ Download
                 </button>
                 <button
                   type="button"
-                  onClick={shareSavedFile}
+                  onClick={printSavedFile}
                   className="flex items-center gap-1.5 border-l border-emerald-500 px-3 py-3 text-sm font-semibold transition hover:bg-emerald-700"
+                  title="Open the PDF and print it"
                 >
-                  📤 Share
+                  🖨 Print
                 </button>
                 <button
                   type="button"
-                  onClick={emailSavedFile}
+                  onClick={shareSavedFile}
                   className="flex items-center gap-1.5 border-l border-emerald-500 px-3 py-3 text-sm font-semibold transition hover:bg-emerald-700"
+                  title="Share via WhatsApp / Mail / system share menu"
                 >
-                  ✉ Email
+                  📤 Share
                 </button>
               </div>
             )}
@@ -660,9 +625,9 @@ export default function SignPdfTool() {
         <p className="mt-2 text-xs text-brand-700">
           {placeMode
             ? placeMode.kind === "date"
-              ? "Click on a page to drop today's date. Drag to move or double-click to edit."
-              : `Click on a page to place your ${placeMode.kind}. Drag corners to resize after.`
-            : "Use the buttons above to add a signature, date or company stamp. Drag any placed item to move it."}
+              ? "Click on a page to drop today's date. Drag to move, drag the bottom-right handle to resize, or double-click to edit."
+              : `Click on a page to place your ${placeMode.kind}. Drag to move, drag the bottom-right handle to resize.`
+            : "Use the buttons above to add a signature, date or company stamp. Drag any placed item to move it — drag its bottom-right handle to resize."}
         </p>
       </div>
 
@@ -811,6 +776,15 @@ function SignPageView({
     document.addEventListener("mouseup", onUp);
   };
 
+  /**
+   * Bottom-right corner resize for any placed item.
+   *
+   * - Images (signature / stamp): aspect-locked diagonal resize.
+   * - Date text: drag scales the FONT SIZE proportionally (and the
+   *   stored width/height follow the font automatically). This is why
+   *   dates didn't visibly resize before — they were laid out by font
+   *   size, not by the width prop.
+   */
   const startResize = (id: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -818,15 +792,43 @@ function SignPageView({
     const item = items.find((i) => i.id === id);
     if (!item) return;
     const start = localPoint(e);
+
+    if (item.kind === "date") {
+      const origFont = item.fontSize;
+      const origW = item.width;
+      const onMove = (ev: MouseEvent) => {
+        const p = localPoint(ev);
+        const dx = p.x - start.x;
+        // Width scale factor → font scale factor. Clamp font size to
+        // the 10–96 px range so it can't collapse or run off the page.
+        const scale = Math.max(0.25, (origW + dx) / Math.max(1, origW));
+        const newFont = Math.max(10, Math.min(96, origFont * scale));
+        const text = item.text;
+        const newWidth = Math.max(60, text.length * newFont * 0.55);
+        onUpdateItem(id, {
+          fontSize: newFont,
+          width: newWidth,
+          height: newFont * 1.4,
+        });
+      };
+      const onUp = () => {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+      };
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+      return;
+    }
+
+    // Image — aspect-locked.
     const origW = item.width;
     const origH = item.height;
     const aspect = origH > 0 ? origW / origH : 1;
-    const isImage = item.kind !== "date";
     const onMove = (ev: MouseEvent) => {
       const p = localPoint(ev);
       const dx = p.x - start.x;
       const newW = Math.max(20, origW + dx);
-      const newH = isImage ? newW / aspect : Math.max(10, origH + (p.y - start.y));
+      const newH = newW / aspect;
       onUpdateItem(id, { width: newW, height: newH });
     };
     const onUp = () => {
@@ -930,10 +932,22 @@ function SignItemView({
       style={wrapperStyle}
       className={`group ${isSelected ? "ring-2 ring-brand-500 ring-offset-1" : "ring-1 ring-transparent hover:ring-brand-300"}`}
       onMouseDown={(e) => {
-        // Start move unless clicking the resize handle / delete / editing
+        // Start move unless clicking the resize handle / delete / editing.
+        // stopPropagation here AND on the wrapping click below prevents the
+        // overlay's onClick from firing afterwards — which would otherwise
+        // deselect this item and make the resize handle disappear after a
+        // single interaction.
         if (isEditingDate) return;
+        e.stopPropagation();
         onSelect();
         onStartMove(e);
+      }}
+      onClick={(e) => {
+        // Swallow the bubbled click so onOverlayClick can't clear the
+        // selection. Without this, mousedown → drag → mouseup → click
+        // bubbles up to the overlay and deselects the item, hiding the
+        // resize handle and making the item un-resizable on the next try.
+        e.stopPropagation();
       }}
     >
       {item.kind === "date" ? (
@@ -994,13 +1008,23 @@ function SignItemView({
         ✕
       </button>
 
-      {/* Resize handle (bottom-right) */}
-      {isSelected && item.kind !== "date" && (
+      {/* Resize handle (bottom-right). Shown for ALL placed items
+          including dates — for dates, dragging scales the font size.
+          The handle is 14×14 and brand-coloured so it's easy to grab
+          on touch screens as well as mouse. */}
+      {isSelected && !isEditingDate && (
         <div
           onMouseDown={onStartResize}
-          title="Drag to resize"
-          className="absolute -right-1 -bottom-1 h-3 w-3 cursor-nwse-resize rounded-sm border border-brand-700 bg-brand-500"
-        />
+          onClick={(e) => e.stopPropagation()}
+          title={
+            item.kind === "date"
+              ? "Drag to resize text"
+              : "Drag to resize"
+          }
+          className="absolute -right-1.5 -bottom-1.5 grid h-4 w-4 cursor-nwse-resize place-items-center rounded-md border-2 border-white bg-brand-600 shadow-md"
+        >
+          <div className="h-1.5 w-1.5 rounded-[1px] bg-white" />
+        </div>
       )}
     </div>
   );

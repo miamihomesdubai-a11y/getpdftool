@@ -3,7 +3,7 @@
 import { PDFDocument } from "pdf-lib";
 import { pdfjsLib } from "./pdfWorker";
 
-export type CompressLevel = "lossless" | "medium" | "strong";
+export type CompressLevel = "lossless" | "medium";
 
 export type CompressLevelInfo = {
   id: CompressLevel;
@@ -29,13 +29,10 @@ export const COMPRESS_LEVELS: CompressLevelInfo[] = [
     description: "Re-renders each page at 150 DPI and saves as compact JPEG. Big size reduction with very readable quality on screen and print.",
     tradeoff: "Good balance of size and quality",
   },
-  {
-    id: "strong",
-    label: "Smallest size",
-    icon: "📦",
-    description: "Aggressive compression — pages re-rendered at 100 DPI with stronger JPEG. Ideal for emailing or sharing where size matters more than crispness.",
-    tradeoff: "Maximum size reduction · screen-quality only",
-  },
+  // "Smallest size" was removed: for text-heavy PDFs (most user inputs),
+  // re-rasterising at 100 DPI + low-quality JPEG produced larger files
+  // than the original vector text. The "Recommended" path is the most
+  // reliable lossy option; "High quality" handles already-optimised PDFs.
 ];
 
 type LossyParams = {
@@ -47,7 +44,6 @@ type LossyParams = {
 
 const LOSSY_BY_LEVEL: Record<Exclude<CompressLevel, "lossless">, LossyParams> = {
   medium: { dpi: 150, quality: 0.78 },
-  strong: { dpi: 100, quality: 0.55 },
 };
 
 /**
