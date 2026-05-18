@@ -4,6 +4,11 @@ import AdSlot from "@/components/AdSlot";
 import RelatedTools from "@/components/RelatedTools";
 import ConvertFromTools from "@/components/ConvertFromTools";
 import ConvertToTools from "@/components/ConvertToTools";
+import {
+  breadcrumbJsonLd,
+  howToJsonLd,
+  ldScriptProps,
+} from "@/lib/seo";
 
 const ConvertToPdfTool = dynamic(
   () => import("@/components/ConvertToPdfTool"),
@@ -99,6 +104,33 @@ const softwareJsonLd = {
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
 };
 
+const howToData = howToJsonLd({
+  name: "How to convert JPG / PNG images to PDF online for free",
+  description:
+    "Combine one or many JPG or PNG images into a single PDF with GetPDFTool's free online image to PDF converter.",
+  url: PAGE_URL,
+  totalTimeISO: "PT1M",
+  steps: [
+    {
+      name: "Add your images",
+      text: "Drop one or many JPG/PNG images on the page or click to choose them.",
+    },
+    {
+      name: "Arrange the order",
+      text: "Use the up/down arrows to reorder, or ✕ to remove an image. Each image becomes a page.",
+    },
+    {
+      name: "Convert & download",
+      text: "Click Convert to PDF and download the combined PDF.",
+    },
+  ],
+});
+
+const breadcrumbData = breadcrumbJsonLd([
+  { name: "Home", url: "https://www.getpdftool.com" },
+  { name: "JPEG to PDF", url: PAGE_URL },
+]);
+
 export default function JpegToPdfPage() {
   return (
     <>
@@ -110,6 +142,8 @@ export default function JpegToPdfPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }}
       />
+      <script {...ldScriptProps(howToData)} />
+      <script {...ldScriptProps(breadcrumbData)} />
 
       <section className="container-narrow pb-2 pt-10 sm:pt-14">
         <div className="text-center">

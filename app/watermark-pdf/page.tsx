@@ -2,6 +2,11 @@ import dynamic from "next/dynamic";
 import type { Metadata } from "next";
 import AdSlot from "@/components/AdSlot";
 import RelatedTools from "@/components/RelatedTools";
+import {
+  breadcrumbJsonLd,
+  howToJsonLd,
+  ldScriptProps,
+} from "@/lib/seo";
 
 const WatermarkTool = dynamic(() => import("@/components/WatermarkTool"), {
   ssr: false,
@@ -116,6 +121,33 @@ const softwareJsonLd = {
   ],
 };
 
+const howToData = howToJsonLd({
+  name: "How to add a watermark to a PDF online for free",
+  description:
+    "Add a text or image watermark to a PDF with GetPDFTool's free online PDF watermark tool.",
+  url: PAGE_URL,
+  totalTimeISO: "PT1M",
+  steps: [
+    {
+      name: "Open your PDF",
+      text: "Drop a PDF on the page or pick one from your computer.",
+    },
+    {
+      name: "Pick text or image",
+      text: "Type your watermark text (DRAFT, CONFIDENTIAL, etc.) or upload a logo PNG/JPEG.",
+    },
+    {
+      name: "Position & download",
+      text: "Choose position, opacity, rotation and pages — then click Save Changes and Download.",
+    },
+  ],
+});
+
+const breadcrumbData = breadcrumbJsonLd([
+  { name: "Home", url: "https://www.getpdftool.com" },
+  { name: "Watermark PDF", url: PAGE_URL },
+]);
+
 const FEATURES = [
   {
     icon: "🔠",
@@ -160,6 +192,8 @@ export default function WatermarkPdfPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }}
       />
+      <script {...ldScriptProps(howToData)} />
+      <script {...ldScriptProps(breadcrumbData)} />
 
       <section className="container-narrow pb-2 pt-10 sm:pt-14">
         <div className="text-center">

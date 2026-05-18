@@ -8,6 +8,7 @@ import {
   imagesToPdf,
   wordToPdf,
 } from "@/lib/convertToPdf";
+import { downloadFile, printFile, shareFile } from "@/lib/fileActions";
 
 export type Source = "jpeg" | "html" | "word" | "excel";
 
@@ -186,64 +187,25 @@ export default function ConvertToPdfTool({ source }: { source: Source }) {
 
   // Output actions
 
-  const buildResultFile = (): File | null => {
-    if (!result) return null;
-    const blob = new Blob([new Uint8Array(result.bytes)], {
-      type: "application/pdf",
-    });
-    return new File([blob], result.name, { type: "application/pdf" });
+  const downloadResult = () => {
+    if (!result) return;
+    downloadFile(result.bytes, result.name);
   };
 
-  const downloadResult = () => {
-    const f = buildResultFile();
-    if (!f) return;
-    const url = URL.createObjectURL(f);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = f.name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const printResult = () => {
+    if (!result) return;
+    const err = printFile(result.bytes, result.name);
+    if (err) setError(err);
   };
 
   const shareResult = async () => {
-    const f = buildResultFile();
-    if (!f) return;
-    const nav = navigator as Navigator & {
-      canShare?: (data: ShareData) => boolean;
-    };
-    if (
-      typeof nav.share === "function" &&
-      typeof nav.canShare === "function" &&
-      nav.canShare({ files: [f] })
-    ) {
-      try {
-        await nav.share({
-          files: [f],
-          title: f.name,
-          text: "Converted with GetPDFTool",
-        });
-      } catch (err) {
-        if ((err as Error).name !== "AbortError") {
-          setError("Could not open the share menu.");
-        }
-      }
-    } else {
-      setError(
-        "Sharing isn't supported in this browser. Please download instead."
-      );
-    }
-  };
-
-  const emailResult = () => {
     if (!result) return;
-    downloadResult();
-    const subject = encodeURIComponent(`Converted PDF — ${result.name}`);
-    const body = encodeURIComponent(
-      `Hi,\n\nPlease find the converted PDF attached.\n\nNote: the file has just been downloaded to your computer. Please attach it from your Downloads folder before sending.\n\nConverted with GetPDFTool — https://www.getpdftool.com`
+    const err = await shareFile(
+      result.bytes,
+      result.name,
+      "Converted with GetPDFTool"
     );
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+    if (err) setError(err);
   };
 
   // ---- UI ----
@@ -364,22 +326,25 @@ export default function ConvertToPdfTool({ source }: { source: Source }) {
               type="button"
               onClick={downloadResult}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-soft transition hover:bg-emerald-700"
+              title="Download to your computer"
             >
               ↓ Download
             </button>
             <button
               type="button"
-              onClick={shareResult}
+              onClick={printResult}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-white px-4 py-3 text-sm font-semibold text-emerald-800 transition hover:border-emerald-500"
+              title="Open the PDF and print it"
             >
-              📤 Share
+              🖨 Print
             </button>
             <button
               type="button"
-              onClick={emailResult}
+              onClick={shareResult}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-white px-4 py-3 text-sm font-semibold text-emerald-800 transition hover:border-emerald-500"
+              title="Share via WhatsApp / Mail / system share menu"
             >
-              ✉ Email
+              📤 Share
             </button>
           </div>
         </div>

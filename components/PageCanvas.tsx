@@ -6,7 +6,7 @@ import type {
   Annotation,
   DrawAnnotation,
   HighlightAnnotation,
-  LinkAnnotation,
+  MarkAnnotation,
   PageMeta,
   RectangleAnnotation,
   TextAnnotation,
@@ -41,16 +41,36 @@ type Props = {
   /** Color/strokeWidth used by NON-text drawing tools. */
   shapeColor: string;
   shapeStrokeWidth: number;
+  /** Color/strokeWidth used by the X / Check tools (separate so the user
+   *  can pick black for marks while keeping shapes red). */
+  markColor: string;
+  markStrokeWidth: number;
   searchHighlights?: SearchHighlight[];
   activeTextId: string | null;
   onAddAnnotation: (a: Annotation) => void;
   onAddTextAndActivate: (a: TextAnnotation) => void;
-  onAddLinkAndEdit: (a: LinkAnnotation) => void;
-  onEditLink: (id: string) => void;
+  /** Resize an annotation that has a rectangular bounding box. */
+  onResizeAnnotation: (
+    id: string,
+    rect: { x: number; y: number; width: number; height: number }
+  ) => void;
   onDeleteAnnotation: (id: string) => void;
   onMoveAnnotation: (id: string, dx: number, dy: number) => void;
   onUpdateText: (id: string, text: string) => void;
   onActivateText: (id: string) => void;
+  /** Called when the user finishes editing a text (blur / Enter / Esc /
+   *  right-click). Parent should deactivate. */
+  onFinalizeText: () => void;
+  /** Called when the user finalizes a placement and the active tool
+   *  should auto-exit back to Select (matches Word/Acrobat behaviour:
+   *  drop a mark → cursor returns to default, no second mark on the
+   *  next click). */
+  onResetToSelect: () => void;
+  /** Currently-selected annotation (typically a mark). When set, that
+   *  annotation renders its dashed bounding box + resize handles. When
+   *  null, no box is shown — matches the "tool exits cleanly" UX. */
+  selectedAnnotationId: string | null;
+  onSelectAnnotation: (id: string | null) => void;
   onRotate: () => void;
   onDelete: () => void;
   rightActions?: React.ReactNode;
@@ -65,12 +85,88 @@ type DragState =
       y0: number;
       x1: number;
       y1: number;
-      subtype: "highlight" | "rectangle" | "whiteout" | "link";
+      subtype: "highlight" | "rectangle" | "whiteout";
     }
   | null;
 
 const newId = () =>
   Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+
+/**
+ * Sample the rendered page colour around a given rectangle so a whiteout
+ * placed over text can match a coloured banner. Uses the MEDIAN of four
+ * thin strips just outside the rect (top / bottom / left / right) — the
+ * outside is more reliable than the inside, which is mostly ink. Falls
+ * back to white if the canvas isn't ready or every strip is off-page.
+ *
+ * Returns "#RRGGBB" hex.
+ */
+function sampleBackgroundColor(
+  canvas: HTMLCanvasElement | null,
+  rect: { x: number; y: number; width: number; height: number },
+  canvasPxPerCssPx: number
+): string {
+  if (!canvas) return "#ffffff";
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return "#ffffff";
+  const dpr = canvasPxPerCssPx;
+  const cw = canvas.width;
+  const ch = canvas.height;
+
+  // Convert rect to canvas-bitmap coordinates.
+  const rx = Math.round(rect.x * dpr);
+  const ry = Math.round(rect.y * dpr);
+  const rw = Math.max(1, Math.round(rect.width * dpr));
+  const rh = Math.max(1, Math.round(rect.height * dpr));
+  const strip = Math.max(2, Math.round(3 * dpr));
+
+  // Four thin strips just outside the rect.
+  const strips = [
+    { x: rx, y: ry - strip, w: rw, h: strip }, // above
+    { x: rx, y: ry + rh, w: rw, h: strip }, // below
+    { x: rx - strip, y: ry, w: strip, h: rh }, // left
+    { x: rx + rw, y: ry, w: strip, h: rh }, // right
+  ].filter(
+    (s) =>
+      s.x >= 0 && s.y >= 0 && s.x + s.w <= cw && s.y + s.h <= ch && s.w > 0 && s.h > 0
+  );
+
+  const reds: number[] = [];
+  const grns: number[] = [];
+  const blus: number[] = [];
+
+  try {
+    for (const s of strips) {
+      const d = ctx.getImageData(s.x, s.y, s.w, s.h).data;
+      for (let i = 0; i < d.length; i += 4) {
+        // Skip near-black pixels — they're almost certainly ink, not
+        // background. (Threshold: any channel under 60 + low alpha-corrected
+        // brightness.)
+        const r = d[i];
+        const g = d[i + 1];
+        const b = d[i + 2];
+        const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        if (luma < 80) continue;
+        reds.push(r);
+        grns.push(g);
+        blus.push(b);
+      }
+    }
+  } catch {
+    return "#ffffff";
+  }
+
+  if (reds.length === 0) return "#ffffff";
+
+  // Median of each channel — robust against text glyphs that slipped past
+  // the luma filter (anti-aliased mid-grey edges, etc.).
+  const median = (arr: number[]) => {
+    const sorted = [...arr].sort((a, b) => a - b);
+    return sorted[Math.floor(sorted.length / 2)];
+  };
+  const toHex = (v: number) => Math.round(v).toString(16).padStart(2, "0");
+  return `#${toHex(median(reds))}${toHex(median(grns))}${toHex(median(blus))}`;
+}
 
 export default function PageCanvas({
   pdfDoc,
@@ -87,16 +183,21 @@ export default function PageCanvas({
   defaultUnderline,
   shapeColor,
   shapeStrokeWidth,
+  markColor,
+  markStrokeWidth,
   searchHighlights,
   activeTextId,
   onAddAnnotation,
   onAddTextAndActivate,
-  onAddLinkAndEdit,
-  onEditLink,
+  onResizeAnnotation,
   onDeleteAnnotation,
   onMoveAnnotation,
   onUpdateText,
   onActivateText,
+  onFinalizeText,
+  onResetToSelect,
+  selectedAnnotationId,
+  onSelectAnnotation,
   onRotate,
   onDelete,
   rightActions,
@@ -113,6 +214,15 @@ export default function PageCanvas({
     dx: number;
     dy: number;
     moved: boolean;
+  } | null>(null);
+  /** Active corner-handle resize on a mark (or any rectangular annotation). */
+  const [resizeDrag, setResizeDrag] = useState<{
+    id: string;
+    /** Live rectangle, updates as the mouse moves. */
+    x: number;
+    y: number;
+    width: number;
+    height: number;
   } | null>(null);
 
   const displaySize = (() => {
@@ -136,16 +246,28 @@ export default function PageCanvas({
 
     (async () => {
       const page = await pdfDoc.getPage(pageMeta.sourceIndex + 1);
+      // Render at device-pixel-ratio for sharp text on retina/HiDPI screens.
+      // The CANVAS bitmap is scale × DPR pixels; the CSS size stays at
+      // scale pixels so annotation coordinates and overlay sizes are
+      // unchanged.
+      const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
       const viewport = page.getViewport({
-        scale,
+        scale: scale * dpr,
         rotation: pageMeta.rotation,
       });
       if (cancelled) return;
       const canvas = canvasRef.current;
       if (!canvas) return;
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      setSize({ w: viewport.width, h: viewport.height });
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+      // CSS display size in logical pixels — must match the overlay so
+      // mouse-to-annotation maths stay consistent.
+      canvas.style.width = `${Math.floor(viewport.width / dpr)}px`;
+      canvas.style.height = `${Math.floor(viewport.height / dpr)}px`;
+      setSize({
+        w: Math.floor(viewport.width / dpr),
+        h: Math.floor(viewport.height / dpr),
+      });
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
       renderTask = page.render({ canvasContext: ctx, viewport });
@@ -240,6 +362,88 @@ export default function PageCanvas({
     [zoom, onMoveAnnotation]
   );
 
+  /**
+   * Resize a rectangular annotation by dragging one of its corner handles.
+   * Constrains width/height to a minimum of 8px so the box stays usable.
+   */
+  const startResizeDrag = useCallback(
+    (
+      id: string,
+      corner: "nw" | "ne" | "sw" | "se",
+      initial: { x: number; y: number; width: number; height: number },
+      e: React.MouseEvent
+    ) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const rect0 = overlayRef.current?.getBoundingClientRect();
+      if (!rect0) return;
+      const z = zoom || 1;
+      const sx = (e.clientX - rect0.left) / z;
+      const sy = (e.clientY - rect0.top) / z;
+      let finalRect = initial;
+
+      const onMove = (ev: MouseEvent) => {
+        const r = overlayRef.current?.getBoundingClientRect();
+        if (!r) return;
+        const cx = (ev.clientX - r.left) / z;
+        const cy = (ev.clientY - r.top) / z;
+        const dx = cx - sx;
+        const dy = cy - sy;
+
+        let nx = initial.x;
+        let ny = initial.y;
+        let nw = initial.width;
+        let nh = initial.height;
+        if (corner === "nw") {
+          nx = initial.x + dx;
+          ny = initial.y + dy;
+          nw = initial.width - dx;
+          nh = initial.height - dy;
+        } else if (corner === "ne") {
+          ny = initial.y + dy;
+          nw = initial.width + dx;
+          nh = initial.height - dy;
+        } else if (corner === "sw") {
+          nx = initial.x + dx;
+          nw = initial.width - dx;
+          nh = initial.height + dy;
+        } else {
+          nw = initial.width + dx;
+          nh = initial.height + dy;
+        }
+        if (nw < 8) {
+          if (corner === "nw" || corner === "sw") nx = initial.x + initial.width - 8;
+          nw = 8;
+        }
+        if (nh < 8) {
+          if (corner === "nw" || corner === "ne") ny = initial.y + initial.height - 8;
+          nh = 8;
+        }
+        finalRect = { x: nx, y: ny, width: nw, height: nh };
+        setResizeDrag({ id, ...finalRect });
+      };
+
+      const onUp = () => {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+        if (
+          finalRect.x !== initial.x ||
+          finalRect.y !== initial.y ||
+          finalRect.width !== initial.width ||
+          finalRect.height !== initial.height
+        ) {
+          onResizeAnnotation(id, finalRect);
+        }
+        setResizeDrag(null);
+      };
+
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+      setResizeDrag({ id, ...initial });
+    },
+    [zoom, onResizeAnnotation]
+  );
+
   const onMouseDown = (e: React.MouseEvent) => {
     const p = localPoint(e);
 
@@ -268,8 +472,7 @@ export default function PageCanvas({
     if (
       tool === "highlight" ||
       tool === "rectangle" ||
-      tool === "whiteout" ||
-      tool === "link"
+      tool === "whiteout"
     ) {
       setDrag({
         kind: "rect",
@@ -280,6 +483,36 @@ export default function PageCanvas({
         subtype: tool,
       });
       return;
+    }
+    if (tool === "cross" || tool === "check") {
+      // Drop a 32x32 mark centred on the click point. The user can then
+      // grab the dashed bounding box to drag it or grab a corner handle
+      // to resize.
+      const size = 32;
+      const ann: MarkAnnotation = {
+        id: newId(),
+        type: "mark",
+        pageIndex,
+        x: p.x - size / 2,
+        y: p.y - size / 2,
+        width: size,
+        height: size,
+        shape: tool === "cross" ? "cross" : "check",
+        color: markColor,
+        strokeWidth: Math.max(2, markStrokeWidth),
+      };
+      onAddAnnotation(ann);
+      // Select the just-placed mark so its dashed box + handles are
+      // visible, and auto-exit to Select so the next click doesn't
+      // drop a second mark.
+      onSelectAnnotation(ann.id);
+      onResetToSelect();
+      return;
+    }
+    // Empty-area click in Select tool → clear selection (closes any
+    // open dashed bounding box on marks).
+    if (tool === "select" && selectedAnnotationId) {
+      onSelectAnnotation(null);
     }
   };
 
@@ -327,6 +560,17 @@ export default function PageCanvas({
           };
           onAddAnnotation(ann);
         } else if (drag.subtype === "whiteout") {
+          // Auto-sample the page colour underneath the whiteout so the
+          // cover blends with coloured / off-white / beige backgrounds.
+          const dpr =
+            canvasRef.current && size && size.w > 0
+              ? canvasRef.current.width / size.w
+              : 1;
+          const bg = sampleBackgroundColor(
+            canvasRef.current,
+            { x, y, width: w, height: h },
+            dpr
+          );
           const ann: WhiteoutAnnotation = {
             id: newId(),
             type: "whiteout",
@@ -335,20 +579,9 @@ export default function PageCanvas({
             y,
             width: w,
             height: h,
+            color: bg,
           };
           onAddAnnotation(ann);
-        } else if (drag.subtype === "link") {
-          const ann: LinkAnnotation = {
-            id: newId(),
-            type: "link",
-            pageIndex,
-            x,
-            y,
-            width: w,
-            height: h,
-            linkType: "url",
-          };
-          onAddLinkAndEdit(ann);
         } else {
           const ann: RectangleAnnotation = {
             id: newId(),
@@ -403,31 +636,40 @@ export default function PageCanvas({
         },
       };
     }
-    // Click on a link in Link tool mode → open its properties (no drag).
-    if (a.type === "link" && tool === "link") {
-      return {
-        pointerEvents: "all" as const,
-        className: "pointer-events-auto cursor-pointer",
-        onMouseDown: (e: React.MouseEvent) => {
-          e.stopPropagation();
-          onEditLink(a.id);
-        },
-      };
-    }
     // Drag-to-move is allowed in Select tool, AND while the user is in
-    // the same kind of tool that created the annotation.
+    // the same kind of tool that created the annotation. The cross/check
+    // tools share the "mark" annotation type, and both should be able to
+    // move existing marks.
     const matchingTool =
       (a.type === "whiteout" && tool === "whiteout") ||
       (a.type === "highlight" && tool === "highlight") ||
-      (a.type === "rectangle" && tool === "rectangle");
+      (a.type === "rectangle" && tool === "rectangle") ||
+      (a.type === "mark" && (tool === "cross" || tool === "check"));
     if (tool === "select" || matchingTool) {
       return {
         pointerEvents: "all" as const,
         className: "pointer-events-auto cursor-move",
-        onMouseDown: (e: React.MouseEvent) => startMoveDrag(a.id, e),
+        onMouseDown: (e: React.MouseEvent) => {
+          // Marks: clicking selects them (so the dashed box + handles
+          // reappear). Other shape types are not "selectable" in the
+          // bounding-box sense — they just drag.
+          if (a.type === "mark") onSelectAnnotation(a.id);
+          startMoveDrag(a.id, e);
+        },
       };
     }
     return {};
+  };
+
+  /**
+   * Should the dashed bounding box + corner resize handles be shown for
+   * this annotation? Only when the user has explicitly SELECTED the
+   * mark (just placed it, or clicked it). Otherwise the mark renders
+   * clean — no box, no handles — matching professional editors.
+   */
+  const showResizeBox = (a: Annotation): boolean => {
+    if (a.type !== "mark") return false;
+    return a.id === selectedAnnotationId;
   };
 
   /** What clicking a text annotation should do, given current tool. */
@@ -505,6 +747,21 @@ export default function PageCanvas({
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}
             onMouseLeave={onMouseUp}
+            onContextMenu={(e) => {
+              // Right-click anywhere finalizes the current placement.
+              // No browser menu appears. If a text is being edited, blur
+              // it (which deactivates via onFinalize). Then exit the
+              // active tool back to Select AND clear mark selection —
+              // matches the spec: right-click ends the lifecycle cleanly
+              // and the dashed bounding box on marks disappears.
+              e.preventDefault();
+              if (activeTextId) {
+                const el = document.activeElement as HTMLElement | null;
+                if (el && typeof el.blur === "function") el.blur();
+              }
+              if (tool !== "select") onResetToSelect();
+              if (selectedAnnotationId) onSelectAnnotation(null);
+            }}
           >
             {/* Shape annotations + search highlights + drag preview (SVG) */}
             <svg
@@ -518,11 +775,15 @@ export default function PageCanvas({
                 const isMoving = moveDrag?.id === a.id && moveDrag.moved;
 
                 if (a.type === "whiteout") {
-                  const accent =
-                    isMoving ||
-                    tool === "select" ||
-                    tool === "eraser" ||
-                    tool === "whiteout";
+                  // Only outline the whiteout when the user needs to see it
+                  // to interact with it — i.e. while actively dragging it,
+                  // or when the Whiteout / Eraser tool is selected. In every
+                  // other mode (Select, Text, Text Editor, Draw, …) the
+                  // whiteout is rendered as a "blank patch of paper" with
+                  // no visible border, so it doesn't clutter the text the
+                  // user is reading on top of it.
+                  const showOutline =
+                    isMoving || tool === "whiteout" || tool === "eraser";
                   return (
                     <rect
                       key={a.id}
@@ -530,10 +791,10 @@ export default function PageCanvas({
                       y={a.y + dy}
                       width={a.width}
                       height={a.height}
-                      fill="#ffffff"
-                      stroke={accent ? "#4f46e5" : "#d1d5db"}
-                      strokeDasharray="4 3"
-                      strokeWidth={accent ? 2 : 1}
+                      fill={a.color ?? "#ffffff"}
+                      stroke={showOutline ? (isMoving ? "#dc2626" : "#d1d5db") : "transparent"}
+                      strokeDasharray={showOutline ? "4 3" : undefined}
+                      strokeWidth={showOutline ? (isMoving ? 2 : 1) : 0}
                       {...ip}
                     />
                   );
@@ -569,23 +830,131 @@ export default function PageCanvas({
                     />
                   );
                 }
-                if (a.type === "link") {
-                  // Visible only inside the editor (dashed brand-coloured).
-                  // The exported PDF carries a real, invisible link annotation.
+                if (a.type === "mark") {
+                  // Live rect — use resizeDrag preview when active, else
+                  // fall back to the stored rect + move-drag offset.
+                  const live =
+                    resizeDrag?.id === a.id
+                      ? {
+                          x: resizeDrag.x,
+                          y: resizeDrag.y,
+                          width: resizeDrag.width,
+                          height: resizeDrag.height,
+                        }
+                      : {
+                          x: a.x + dx,
+                          y: a.y + dy,
+                          width: a.width,
+                          height: a.height,
+                        };
+                  const x0 = live.x;
+                  const y0 = live.y;
+                  const w = live.width;
+                  const h = live.height;
+                  const withBox = showResizeBox(a);
+
+                  // Inner shape (X or ✓)
+                  let shapeEl: JSX.Element;
+                  if (a.shape === "cross") {
+                    // Inset the strokes a touch so the X sits cleanly inside
+                    // the dashed bounding box, like Microsoft Word's marks.
+                    const inset = Math.min(w, h) * 0.12;
+                    shapeEl = (
+                      <g {...ip}>
+                        <line
+                          x1={x0 + inset}
+                          y1={y0 + inset}
+                          x2={x0 + w - inset}
+                          y2={y0 + h - inset}
+                          stroke={a.color}
+                          strokeWidth={a.strokeWidth}
+                          strokeLinecap="round"
+                        />
+                        <line
+                          x1={x0 + w - inset}
+                          y1={y0 + inset}
+                          x2={x0 + inset}
+                          y2={y0 + h - inset}
+                          stroke={a.color}
+                          strokeWidth={a.strokeWidth}
+                          strokeLinecap="round"
+                        />
+                      </g>
+                    );
+                  } else {
+                    const p1x = x0 + w * 0.15;
+                    const p1y = y0 + h * 0.55;
+                    const p2x = x0 + w * 0.4;
+                    const p2y = y0 + h * 0.85;
+                    const p3x = x0 + w * 0.85;
+                    const p3y = y0 + h * 0.15;
+                    shapeEl = (
+                      <polyline
+                        points={`${p1x},${p1y} ${p2x},${p2y} ${p3x},${p3y}`}
+                        fill="none"
+                        stroke={a.color}
+                        strokeWidth={a.strokeWidth}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        {...ip}
+                      />
+                    );
+                  }
+
+                  if (!withBox) {
+                    return <g key={a.id}>{shapeEl}</g>;
+                  }
+
+                  // Dashed bounding box + corner resize handles.
+                  const corners: {
+                    cx: number;
+                    cy: number;
+                    name: "nw" | "ne" | "sw" | "se";
+                    cursor: string;
+                  }[] = [
+                    { cx: x0, cy: y0, name: "nw", cursor: "nwse-resize" },
+                    { cx: x0 + w, cy: y0, name: "ne", cursor: "nesw-resize" },
+                    { cx: x0, cy: y0 + h, name: "sw", cursor: "nesw-resize" },
+                    { cx: x0 + w, cy: y0 + h, name: "se", cursor: "nwse-resize" },
+                  ];
+
                   return (
-                    <rect
-                      key={a.id}
-                      x={a.x + dx}
-                      y={a.y + dy}
-                      width={a.width}
-                      height={a.height}
-                      fill="#6366f1"
-                      fillOpacity={0.08}
-                      stroke="#4f46e5"
-                      strokeDasharray="4 3"
-                      strokeWidth={1.5}
-                      {...ip}
-                    />
+                    <g key={a.id}>
+                      {/* Dashed bounding box — itself draggable. */}
+                      <rect
+                        x={x0}
+                        y={y0}
+                        width={w}
+                        height={h}
+                        fill="transparent"
+                        stroke="#dc2626"
+                        strokeDasharray="4 3"
+                        strokeWidth={1}
+                        {...ip}
+                      />
+                      {shapeEl}
+                      {corners.map((cn) => (
+                        <rect
+                          key={cn.name}
+                          x={cn.cx - 4}
+                          y={cn.cy - 4}
+                          width={8}
+                          height={8}
+                          fill="#ffffff"
+                          stroke="#dc2626"
+                          strokeWidth={1.5}
+                          style={{ cursor: cn.cursor, pointerEvents: "all" }}
+                          onMouseDown={(e) =>
+                            startResizeDrag(
+                              a.id,
+                              cn.name,
+                              { x: a.x, y: a.y, width: a.width, height: a.height },
+                              e
+                            )
+                          }
+                        />
+                      ))}
+                    </g>
                   );
                 }
                 if (a.type === "draw") {
@@ -653,30 +1022,22 @@ export default function PageCanvas({
                       ? "#fde047"
                       : drag.subtype === "whiteout"
                         ? "#ffffff"
-                        : drag.subtype === "link"
-                          ? "#6366f1"
-                          : "none"
+                        : "none"
                   }
                   fillOpacity={
                     drag.subtype === "highlight"
                       ? 0.35
                       : drag.subtype === "whiteout"
                         ? 0.85
-                        : drag.subtype === "link"
-                          ? 0.12
-                          : 0
+                        : 0
                   }
                   stroke={
-                    drag.subtype === "whiteout"
-                      ? "#9ca3af"
-                      : drag.subtype === "link"
-                        ? "#4f46e5"
-                        : shapeColor
+                    drag.subtype === "whiteout" ? "#9ca3af" : shapeColor
                   }
                   strokeWidth={
                     drag.subtype === "highlight"
                       ? 0
-                      : drag.subtype === "whiteout" || drag.subtype === "link"
+                      : drag.subtype === "whiteout"
                         ? 1.5
                         : shapeStrokeWidth
                   }
@@ -702,6 +1063,7 @@ export default function PageCanvas({
                   onDelete={() => onDeleteAnnotation(t.id)}
                   onUpdateText={(text) => onUpdateText(t.id, text)}
                   onMoveStart={(e) => startMoveDrag(t.id, e)}
+                  onFinalize={onFinalizeText}
                   toolMode={textToolMode}
                 />
               ))}

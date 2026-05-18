@@ -3,6 +3,11 @@ import type { Metadata } from "next";
 import AdSlot from "@/components/AdSlot";
 import RelatedTools from "@/components/RelatedTools";
 import ConvertFromTools from "@/components/ConvertFromTools";
+import {
+  breadcrumbJsonLd,
+  howToJsonLd,
+  ldScriptProps,
+} from "@/lib/seo";
 
 const ConvertFromPdfTool = dynamic(
   () => import("@/components/ConvertFromPdfTool"),
@@ -105,6 +110,33 @@ const softwareJsonLd = {
   ],
 };
 
+const howToData = howToJsonLd({
+  name: "How to convert PDF to JPG online for free",
+  description:
+    "Turn every page of a PDF into a JPG image with GetPDFTool's free online converter.",
+  url: PAGE_URL,
+  totalTimeISO: "PT1M",
+  steps: [
+    {
+      name: "Open your PDF",
+      text: "Drop a PDF on the page or pick one from your computer.",
+    },
+    {
+      name: "Pick a quality",
+      text: "Choose Low, Medium or High image quality for the output JPGs.",
+    },
+    {
+      name: "Convert & download",
+      text: "Click Convert to JPG. Single-page PDFs download as one JPG; multi-page PDFs as a ZIP.",
+    },
+  ],
+});
+
+const breadcrumbData = breadcrumbJsonLd([
+  { name: "Home", url: "https://www.getpdftool.com" },
+  { name: "PDF to JPG", url: PAGE_URL },
+]);
+
 export default function PdfToJpgPage() {
   return (
     <>
@@ -116,6 +148,8 @@ export default function PdfToJpgPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }}
       />
+      <script {...ldScriptProps(howToData)} />
+      <script {...ldScriptProps(breadcrumbData)} />
 
       <section className="container-narrow pb-2 pt-10 sm:pt-14">
         <div className="text-center">

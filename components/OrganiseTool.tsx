@@ -10,6 +10,7 @@ import {
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { PDFDocument, degrees } from "pdf-lib";
 import { pdfjsLib } from "@/lib/pdfWorker";
+import { downloadFile, printFile, shareFile } from "@/lib/fileActions";
 
 type Rotation = 0 | 90 | 180 | 270;
 
@@ -323,110 +324,135 @@ export default function OrganiseTool() {
 
   // ---- Save / Download / Share / Email ----------------------------------
 
+  /**
+   * Save Changes → builds the merged PDF and triggers an immediate
+   * browser download. The "saved" state then unlocks the Print and
+   * Share buttons for follow-up actions. Auto-downloading on save
+   * removes the "what do I click next?" confusion that made the
+   * flow feel tricky when many pages were assembled.
+   */
+  /**
+   * Save Changes → builds the merged PDF and triggers an immediate
+   * browser download. The "saved" state then unlocks the Print and
+   * Share buttons for follow-up actions. Auto-downloading on save
+   * removes the "what do I click next?" confusion that made the
+   * flow feel tricky when many pages were assembled.
+   */
   const saveChanges = async () => {
     if (pages.length === 0) return;
     setExporting(true);
     setError(null);
+    let lastErr: unknown = null;
     try {
       const newPdf = await PDFDocument.create();
 
       // Pre-load each source PDF once with pdf-lib.
+      // ignoreEncryption lets us copy pages out of PDFs that have a
+      // viewer password set (very common with bank statements, form
+      // exports, contracts). Without this flag those silently fail
+      // here and the user sees a generic "Could not save" error.
       const sourceDocs = new Map<string, PDFDocument>();
       for (const [id, src] of sources.entries()) {
-        sourceDocs.set(id, await PDFDocument.load(src.bytes));
+        try {
+          sourceDocs.set(
+            id,
+            await PDFDocument.load(src.bytes, {
+              ignoreEncryption: true,
+              updateMetadata: false,
+            })
+          );
+        } catch (loadErr) {
+          // One bad source shouldn't kill the whole save — just skip
+          // its pages and keep going. We surface a helpful warning at
+          // the end so the user knows what was dropped.
+          console.error(
+            `Could not load source PDF "${src.fileName}":`,
+            loadErr
+          );
+          lastErr = new Error(
+            `"${src.fileName}" couldn't be opened (it may be password-protected or damaged).`
+          );
+        }
       }
 
-      // Group consecutive same-source pages together for efficient copyPages.
-      // For simplicity (and because copies of the same page are common),
-      // copy each page individually.
+      let copyFailures = 0;
       for (const item of pages) {
         if (item.kind === "blank") {
           newPdf.addPage([item.width, item.height]).setRotation(
             degrees(item.rotation)
           );
-        } else {
-          const src = sourceDocs.get(item.sourceId);
-          if (!src) continue;
+          continue;
+        }
+        const src = sourceDocs.get(item.sourceId);
+        if (!src) {
+          copyFailures++;
+          continue;
+        }
+        try {
           const [copied] = await newPdf.copyPages(src, [item.sourceIndex]);
           copied.setRotation(degrees(item.rotation));
           newPdf.addPage(copied);
+        } catch (copyErr) {
+          console.error(
+            `Could not copy page ${item.sourceIndex + 1} of source ${item.sourceId}:`,
+            copyErr
+          );
+          copyFailures++;
         }
       }
 
-      const out = await newPdf.save();
+      if (newPdf.getPageCount() === 0) {
+        throw new Error(
+          "None of the selected pages could be copied. The source PDF may be heavily encrypted or corrupted."
+        );
+      }
+
+      const out = await newPdf.save({ useObjectStreams: true });
       const base = primaryFileName.replace(/\.pdf$/i, "") || "organised";
+      const fileName = `${base}-organised.pdf`;
       setSavedBytes(out);
-      setSavedFileName(`${base}-organised.pdf`);
+      setSavedFileName(fileName);
+      downloadFile(out, fileName);
+
+      if (copyFailures > 0) {
+        setError(
+          `Saved with ${copyFailures} page${copyFailures === 1 ? "" : "s"} skipped — see browser console for details.`
+        );
+      } else if (lastErr) {
+        setError((lastErr as Error).message);
+      }
     } catch (err) {
-      console.error(err);
-      setError("Could not save changes. Please try again.");
+      console.error("Save failed:", err);
+      const msg = (err as Error).message;
+      setError(
+        msg && msg.length < 200
+          ? `Could not save: ${msg}`
+          : "Could not save changes. The source PDF may be encrypted or damaged — try opening it in a different viewer first."
+      );
     } finally {
       setExporting(false);
     }
   };
 
-  const buildSavedFile = (): File | null => {
-    if (!savedBytes) return null;
-    const blob = new Blob([new Uint8Array(savedBytes)], {
-      type: "application/pdf",
-    });
-    return new File([blob], savedFileName || "organised.pdf", {
-      type: "application/pdf",
-    });
+  const downloadSavedFile = () => {
+    if (!savedBytes) return;
+    downloadFile(savedBytes, savedFileName || "organised.pdf");
   };
 
-  const downloadSavedFile = () => {
-    const file = buildSavedFile();
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = file.name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const printSavedFile = () => {
+    if (!savedBytes) return;
+    const err = printFile(savedBytes, savedFileName || "organised.pdf");
+    if (err) setError(err);
   };
 
   const shareSavedFile = async () => {
-    const file = buildSavedFile();
-    if (!file) return;
-    const nav = navigator as Navigator & {
-      canShare?: (data: ShareData) => boolean;
-    };
-    if (
-      typeof nav.share === "function" &&
-      typeof nav.canShare === "function" &&
-      nav.canShare({ files: [file] })
-    ) {
-      try {
-        await nav.share({
-          title: file.name,
-          text: "Organised with GetPDFTool",
-          files: [file],
-        });
-      } catch (err) {
-        if ((err as Error).name !== "AbortError") {
-          setError("Could not open the share menu.");
-        }
-      }
-    } else {
-      setError(
-        "Sharing isn't supported in this browser. Please download the file and share it from your computer."
-      );
-    }
-  };
-
-  const emailSavedFile = () => {
     if (!savedBytes) return;
-    downloadSavedFile();
-    const subject = encodeURIComponent(
-      `Organised PDF — ${savedFileName || "organised.pdf"}`
+    const err = await shareFile(
+      savedBytes,
+      savedFileName || "organised.pdf",
+      "Organised with GetPDFTool"
     );
-    const body = encodeURIComponent(
-      `Hi,\n\nPlease find the organised PDF attached.\n\nNote: the file has just been downloaded to your computer. Please attach it from your Downloads folder before sending.\n\nOrganised with GetPDFTool — https://www.getpdftool.com`
-    );
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+    if (err) setError(err);
   };
 
   // ---- Add Page menu state ---------------------------------------------
@@ -617,15 +643,19 @@ export default function OrganiseTool() {
             <button
               type="button"
               onClick={saveChanges}
-              disabled={exporting || pages.length === 0 || !!savedBytes}
+              disabled={exporting || pages.length === 0}
               className="btn-primary"
-              title={savedBytes ? "All changes saved" : "Save your edits"}
+              title={
+                savedBytes
+                  ? "Save and download again"
+                  : "Build your PDF and download it"
+              }
             >
               {exporting
                 ? "Saving…"
                 : savedBytes
-                  ? "✓ Saved"
-                  : "💾 Save Changes"}
+                  ? "↻ Save & Download again"
+                  : "💾 Save & Download"}
             </button>
             {savedBytes && (
               <div className="flex items-stretch overflow-hidden rounded-xl bg-emerald-600 text-white shadow-soft">
@@ -633,22 +663,25 @@ export default function OrganiseTool() {
                   type="button"
                   onClick={downloadSavedFile}
                   className="flex items-center gap-1.5 px-4 py-3 text-sm font-semibold transition hover:bg-emerald-700"
+                  title="Download to your computer"
                 >
                   ↓ Download
                 </button>
                 <button
                   type="button"
-                  onClick={shareSavedFile}
+                  onClick={printSavedFile}
                   className="flex items-center gap-1.5 border-l border-emerald-500 px-3 py-3 text-sm font-semibold transition hover:bg-emerald-700"
+                  title="Open the PDF and print it"
                 >
-                  📤 Share
+                  🖨 Print
                 </button>
                 <button
                   type="button"
-                  onClick={emailSavedFile}
+                  onClick={shareSavedFile}
                   className="flex items-center gap-1.5 border-l border-emerald-500 px-3 py-3 text-sm font-semibold transition hover:bg-emerald-700"
+                  title="Share via WhatsApp / Mail / system share menu"
                 >
-                  ✉ Email
+                  📤 Share
                 </button>
               </div>
             )}

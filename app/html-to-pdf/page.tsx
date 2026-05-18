@@ -4,6 +4,11 @@ import AdSlot from "@/components/AdSlot";
 import RelatedTools from "@/components/RelatedTools";
 import ConvertFromTools from "@/components/ConvertFromTools";
 import ConvertToTools from "@/components/ConvertToTools";
+import {
+  breadcrumbJsonLd,
+  howToJsonLd,
+  ldScriptProps,
+} from "@/lib/seo";
 
 const ConvertToPdfTool = dynamic(
   () => import("@/components/ConvertToPdfTool"),
@@ -94,6 +99,33 @@ const softwareJsonLd = {
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
 };
 
+const howToData = howToJsonLd({
+  name: "How to convert HTML to PDF online for free",
+  description:
+    "Render HTML markup or an .html file as a clean multi-page PDF with GetPDFTool's free online HTML to PDF converter.",
+  url: PAGE_URL,
+  totalTimeISO: "PT1M",
+  steps: [
+    {
+      name: "Add your HTML",
+      text: "Paste HTML into the text area, or switch to Upload .html file and pick one from your computer.",
+    },
+    {
+      name: "Convert to PDF",
+      text: "Click Convert to PDF — we render the markup using your browser fonts and styles.",
+    },
+    {
+      name: "Download the PDF",
+      text: "Download the multi-page PDF — or share or email it from the tool.",
+    },
+  ],
+});
+
+const breadcrumbData = breadcrumbJsonLd([
+  { name: "Home", url: "https://www.getpdftool.com" },
+  { name: "HTML to PDF", url: PAGE_URL },
+]);
+
 export default function HtmlToPdfPage() {
   return (
     <>
@@ -105,6 +137,8 @@ export default function HtmlToPdfPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }}
       />
+      <script {...ldScriptProps(howToData)} />
+      <script {...ldScriptProps(breadcrumbData)} />
 
       <section className="container-narrow pb-2 pt-10 sm:pt-14">
         <div className="text-center">

@@ -2,6 +2,11 @@ import dynamic from "next/dynamic";
 import type { Metadata } from "next";
 import AdSlot from "@/components/AdSlot";
 import RelatedTools from "@/components/RelatedTools";
+import {
+  breadcrumbJsonLd,
+  howToJsonLd,
+  ldScriptProps,
+} from "@/lib/seo";
 
 const OrganiseTool = dynamic(() => import("@/components/OrganiseTool"), {
   ssr: false,
@@ -101,6 +106,33 @@ const softwareJsonLd = {
   ],
 };
 
+const howToData = howToJsonLd({
+  name: "How to copy PDF pages online for free",
+  description:
+    "Duplicate any PDF page with GetPDFTool's free online PDF page copier.",
+  url: PAGE_URL,
+  totalTimeISO: "PT1M",
+  steps: [
+    {
+      name: "Open your PDF",
+      text: "Drop a PDF on the page or pick one from your computer.",
+    },
+    {
+      name: "Select & copy",
+      text: "Click pages to select. ⌘/Ctrl-click for many, Shift-click for a range. Then click ⎘ Copy.",
+    },
+    {
+      name: "Save and download",
+      text: "Click Save Changes, then Download the file with the new duplicates.",
+    },
+  ],
+});
+
+const breadcrumbData = breadcrumbJsonLd([
+  { name: "Home", url: "https://www.getpdftool.com" },
+  { name: "Copy PDF Pages", url: PAGE_URL },
+]);
+
 export default function CopyPdfPagesPage() {
   return (
     <>
@@ -112,6 +144,8 @@ export default function CopyPdfPagesPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }}
       />
+      <script {...ldScriptProps(howToData)} />
+      <script {...ldScriptProps(breadcrumbData)} />
 
       <section className="container-narrow pb-2 pt-10 sm:pt-14">
         <div className="text-center">

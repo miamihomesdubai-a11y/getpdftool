@@ -1,6 +1,11 @@
 import dynamic from "next/dynamic";
 import type { Metadata } from "next";
 import AdSlot from "@/components/AdSlot";
+import {
+  breadcrumbJsonLd,
+  howToJsonLd,
+  ldScriptProps,
+} from "@/lib/seo";
 
 const OrganiseTool = dynamic(() => import("@/components/OrganiseTool"), {
   ssr: false,
@@ -224,6 +229,33 @@ const softwareJsonLd = {
   ],
 };
 
+const howToData = howToJsonLd({
+  name: "How to organise a PDF online for free",
+  description:
+    "Reorder, merge, rotate, copy or delete PDF pages with GetPDFTool's free online PDF organiser.",
+  url: PAGE_URL,
+  totalTimeISO: "PT1M",
+  steps: [
+    {
+      name: "Open your PDF",
+      text: "Drop a PDF file on the page or pick one from your computer.",
+    },
+    {
+      name: "Select & rearrange",
+      text: "Click pages to select them, drag thumbnails to reorder, copy or delete in batch from the toolbar.",
+    },
+    {
+      name: "Save & deliver",
+      text: "Click Save Changes, then Download, Share or Email the organised PDF.",
+    },
+  ],
+});
+
+const breadcrumbData = breadcrumbJsonLd([
+  { name: "Home", url: "https://www.getpdftool.com" },
+  { name: "Organise PDF", url: PAGE_URL },
+]);
+
 export default function OrganisePage() {
   return (
     <>
@@ -236,6 +268,8 @@ export default function OrganisePage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }}
       />
+      <script {...ldScriptProps(howToData)} />
+      <script {...ldScriptProps(breadcrumbData)} />
 
       {/* Hero */}
       <section className="container-narrow pb-2 pt-10 sm:pt-14">

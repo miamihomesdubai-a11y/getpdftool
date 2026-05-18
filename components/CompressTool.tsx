@@ -7,6 +7,7 @@ import {
   formatBytes,
   type CompressLevel,
 } from "@/lib/compressPdf";
+import { downloadFile, printFile, shareFile } from "@/lib/fileActions";
 
 export default function CompressTool() {
   const [originalBytes, setOriginalBytes] = useState<Uint8Array | null>(null);
@@ -87,61 +88,23 @@ export default function CompressTool() {
 
   const downloadResult = () => {
     if (!result) return;
-    const blob = new Blob([new Uint8Array(result.bytes)], {
-      type: "application/pdf",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = result.name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadFile(result.bytes, result.name);
+  };
+
+  const printResult = () => {
+    if (!result) return;
+    const err = printFile(result.bytes, result.name);
+    if (err) setError(err);
   };
 
   const shareResult = async () => {
     if (!result) return;
-    const blob = new Blob([new Uint8Array(result.bytes)], {
-      type: "application/pdf",
-    });
-    const file = new File([blob], result.name, { type: "application/pdf" });
-    const nav = navigator as Navigator & {
-      canShare?: (data: ShareData) => boolean;
-    };
-    if (
-      typeof nav.share === "function" &&
-      typeof nav.canShare === "function" &&
-      nav.canShare({ files: [file] })
-    ) {
-      try {
-        await nav.share({
-          title: file.name,
-          text: "Compressed with GetPDFTool",
-          files: [file],
-        });
-      } catch (err) {
-        if ((err as Error).name !== "AbortError") {
-          setError("Could not open the share menu.");
-        }
-      }
-    } else {
-      setError(
-        "Sharing isn't supported in this browser. Please download instead."
-      );
-    }
-  };
-
-  const emailResult = () => {
-    if (!result) return;
-    downloadResult();
-    const subject = encodeURIComponent(
-      `Compressed PDF — ${result.name}`
+    const err = await shareFile(
+      result.bytes,
+      result.name,
+      "Compressed with GetPDFTool"
     );
-    const body = encodeURIComponent(
-      `Hi,\n\nPlease find the compressed PDF attached.\n\nNote: the file has just been downloaded to your computer. Please attach it from your Downloads folder before sending.\n\nCompressed with GetPDFTool — https://www.getpdftool.com`
-    );
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+    if (err) setError(err);
   };
 
   // ---------- Empty state ----------
@@ -229,7 +192,7 @@ export default function CompressTool() {
       <h3 className="mb-3 text-sm font-semibold text-gray-900">
         Choose a compression level
       </h3>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         {COMPRESS_LEVELS.map((opt) => (
           <button
             key={opt.id}
@@ -318,7 +281,7 @@ export default function CompressTool() {
 
           {savings <= 2 && result.level === "lossless" && (
             <p className="mt-3 text-xs text-emerald-900/80">
-              This PDF was already well-optimised. Try{" "}
+              This PDF was already well-optimised. Try the{" "}
               <button
                 type="button"
                 onClick={() => setLevel("medium")}
@@ -326,15 +289,7 @@ export default function CompressTool() {
               >
                 Recommended
               </button>{" "}
-              or{" "}
-              <button
-                type="button"
-                onClick={() => setLevel("strong")}
-                className="underline font-semibold"
-              >
-                Smallest size
-              </button>{" "}
-              for bigger savings (image-based output).
+              level for bigger savings (image-based output).
             </p>
           )}
 
@@ -343,22 +298,25 @@ export default function CompressTool() {
               type="button"
               onClick={downloadResult}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-soft transition hover:bg-emerald-700"
+              title="Download to your computer"
             >
               ↓ Download
             </button>
             <button
               type="button"
-              onClick={shareResult}
+              onClick={printResult}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-white px-4 py-3 text-sm font-semibold text-emerald-800 transition hover:border-emerald-500"
+              title="Open the PDF and print it"
             >
-              📤 Share
+              🖨 Print
             </button>
             <button
               type="button"
-              onClick={emailResult}
+              onClick={shareResult}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-white px-4 py-3 text-sm font-semibold text-emerald-800 transition hover:border-emerald-500"
+              title="Share via WhatsApp / Mail / system share menu"
             >
-              ✉ Email
+              📤 Share
             </button>
             <button
               type="button"

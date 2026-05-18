@@ -3,6 +3,11 @@ import type { Metadata } from "next";
 import AdSlot from "@/components/AdSlot";
 import RelatedTools from "@/components/RelatedTools";
 import ConvertFromTools from "@/components/ConvertFromTools";
+import {
+  breadcrumbJsonLd,
+  howToJsonLd,
+  ldScriptProps,
+} from "@/lib/seo";
 
 const ConvertFromPdfTool = dynamic(
   () => import("@/components/ConvertFromPdfTool"),
@@ -107,6 +112,33 @@ const softwareJsonLd = {
   ],
 };
 
+const howToData = howToJsonLd({
+  name: "How to convert PDF to PowerPoint online for free",
+  description:
+    "Turn every PDF page into a 16:9 PowerPoint slide with GetPDFTool's free online converter.",
+  url: PAGE_URL,
+  totalTimeISO: "PT1M",
+  steps: [
+    {
+      name: "Open your PDF",
+      text: "Drop a PDF on the page or pick one from your computer.",
+    },
+    {
+      name: "Convert to PowerPoint",
+      text: "Click Convert to PowerPoint — each page is rendered as a high-resolution image on a 16:9 slide.",
+    },
+    {
+      name: "Download & present",
+      text: "Download the .pptx and open it in PowerPoint, Keynote or Google Slides.",
+    },
+  ],
+});
+
+const breadcrumbData = breadcrumbJsonLd([
+  { name: "Home", url: "https://www.getpdftool.com" },
+  { name: "PDF to PowerPoint", url: PAGE_URL },
+]);
+
 export default function PdfToPptxPage() {
   return (
     <>
@@ -118,6 +150,8 @@ export default function PdfToPptxPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }}
       />
+      <script {...ldScriptProps(howToData)} />
+      <script {...ldScriptProps(breadcrumbData)} />
 
       <section className="container-narrow pb-2 pt-10 sm:pt-14">
         <div className="text-center">

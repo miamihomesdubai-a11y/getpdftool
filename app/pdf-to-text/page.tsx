@@ -3,6 +3,11 @@ import type { Metadata } from "next";
 import AdSlot from "@/components/AdSlot";
 import RelatedTools from "@/components/RelatedTools";
 import ConvertFromTools from "@/components/ConvertFromTools";
+import {
+  breadcrumbJsonLd,
+  howToJsonLd,
+  ldScriptProps,
+} from "@/lib/seo";
 
 const ConvertFromPdfTool = dynamic(
   () => import("@/components/ConvertFromPdfTool"),
@@ -104,6 +109,33 @@ const softwareJsonLd = {
   ],
 };
 
+const howToData = howToJsonLd({
+  name: "How to convert PDF to text online for free",
+  description:
+    "Extract every word from a PDF as a clean .txt file with GetPDFTool's free online PDF to text converter.",
+  url: PAGE_URL,
+  totalTimeISO: "PT1M",
+  steps: [
+    {
+      name: "Open your PDF",
+      text: "Drop a PDF on the page or pick one from your computer.",
+    },
+    {
+      name: "Convert to text",
+      text: "Click Convert to text — we extract every word from every page in reading order.",
+    },
+    {
+      name: "Download the .txt",
+      text: "Download the plain-text file and paste it into Word, Google Docs, or any tool that accepts text.",
+    },
+  ],
+});
+
+const breadcrumbData = breadcrumbJsonLd([
+  { name: "Home", url: "https://www.getpdftool.com" },
+  { name: "PDF to Text", url: PAGE_URL },
+]);
+
 export default function PdfToTextPage() {
   return (
     <>
@@ -115,6 +147,8 @@ export default function PdfToTextPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }}
       />
+      <script {...ldScriptProps(howToData)} />
+      <script {...ldScriptProps(breadcrumbData)} />
 
       <section className="container-narrow pb-2 pt-10 sm:pt-14">
         <div className="text-center">
