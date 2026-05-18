@@ -66,6 +66,11 @@ export const metadata: Metadata = {
       "max-video-preview": -1,
     },
   },
+  // Site-ownership verification tokens. Each entry emits a
+  // <meta name="..." content="..."> tag in <head>.
+  verification: {
+    google: "d3hejTXkROZvMuSKaX1ouVVU9-Cog4dkdPD09uf7S2g",
+  },
 };
 
 export default function RootLayout({
