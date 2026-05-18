@@ -1,6 +1,26 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 export default function Header() {
+  const pathname = usePathname();
+
+  /**
+   * The home page IS the editor (route "/"), so clicking a Link to
+   * "/" while already on "/" is a no-op from Next.js's perspective —
+   * which felt like the button was broken. When the user is already on
+   * the home page, force a hard reload instead: it clears any PDF the
+   * user has loaded into the editor and scrolls back to the top, which
+   * is what "Home" should feel like.
+   */
+  const onHomeClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (pathname === "/") {
+      e.preventDefault();
+      window.location.href = "/";
+    }
+  };
+
   return (
     <header className="sticky top-0 z-40 border-b border-ink-800/40 bg-ink-900 text-white">
       <div className="container-narrow flex h-16 items-center justify-between">
@@ -9,6 +29,7 @@ export default function Header() {
             on the wrapper makes it visually obvious it's a link. */}
         <Link
           href="/"
+          onClick={onHomeClick}
           title="GetPDFTool — back to home"
           aria-label="Go to GetPDFTool home page"
           className="group flex items-center gap-2.5 rounded-xl px-1 py-1 transition hover:bg-white/5"
@@ -31,9 +52,11 @@ export default function Header() {
         <nav className="flex items-center gap-1 text-sm">
           {/* Renamed Editor → Home so it's universally understood as
               "back to the landing page", even though the editor lives
-              there. */}
+              there. Same onClick as the logo: hard-reload when already
+              on / so the editor resets to a clean state. */}
           <Link
             href="/"
+            onClick={onHomeClick}
             className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 font-medium text-white/85 transition hover:bg-white/5 hover:text-white"
           >
             <svg
