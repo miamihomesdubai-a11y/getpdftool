@@ -9,9 +9,11 @@ import {
   webSiteJsonLd,
 } from "@/lib/seo";
 
-// Replace with your real AdSense publisher ID once approved by Google.
-// Example: "ca-pub-1234567890123456"
-const ADSENSE_CLIENT = "";
+// Google AdSense publisher ID. Loading this script does two jobs:
+// (1) lets AdSense verify the site is ours during review, and
+// (2) once approved, lets ad units render where <AdSlot> mounts them.
+// Until approval, the script loads but no ads display — harmless.
+const ADSENSE_CLIENT = "ca-pub-2575111126579327";
 
 // Google Analytics 4 measurement ID — see
 // https://analytics.google.com/ for your property.
