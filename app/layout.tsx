@@ -69,9 +69,14 @@ export const metadata: Metadata = {
     },
   },
   // Site-ownership verification tokens. Each entry emits a
-  // <meta name="..." content="..."> tag in <head>.
+  // <meta name="..." content="..."> tag in <head>. Multiple tokens
+  // can coexist — useful when verifying different Search Console
+  // properties (URL-prefix vs Domain) or multiple Google accounts.
   verification: {
-    google: "d3hejTXkROZvMuSKaX1ouVVU9-Cog4dkdPD09uf7S2g",
+    google: [
+      "d3hejTXkROZvMuSKaX1ouVVU9-Cog4dkdPD09uf7S2g",
+      "6fwV1qs_PnDlyevq0Wk5UTlki3RpERYpS8t-nmXcBbY",
+    ],
   },
 };
 
