@@ -65,11 +65,11 @@ const FAQS = [
   },
   {
     q: "Why use image-based slides?",
-    a: "Image-per-slide gives perfect visual fidelity — exactly the layout, fonts, colours and graphics from the source PDF. Text-extraction approaches often misalign columns, lose images and break complex layouts.",
+    a: "Image-per-slide gives image-based appearance — exactly the layout, fonts, colours and graphics from the source PDF. Text-extraction approaches often misalign columns, lose images and break complex layouts.",
   },
   {
     q: "What's the slide size?",
-    a: "Slides are exported in 16:9 widescreen format (the modern PowerPoint default), with the source page scaled to fit.",
+    a: "Slides are exported in page-sized widescreen format (the modern PowerPoint default), with the source page scaled to fit.",
   },
   {
     q: "Is my PDF uploaded to your servers?",
@@ -104,8 +104,8 @@ const softwareJsonLd = {
   operatingSystem: "Any (web browser)",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   featureList: [
-    "Convert each PDF page into a 16:9 slide",
-    "Image-per-slide for perfect visual fidelity",
+    "Convert each PDF page into a page-sized slide",
+    "Image-per-slide for image-based appearance",
     "Opens in PowerPoint, Keynote, Google Slides, Impress",
     "Browser-based — files never leave your device",
     "Save, Share or Email the result",
@@ -115,7 +115,7 @@ const softwareJsonLd = {
 const howToData = howToJsonLd({
   name: "How to convert PDF to PowerPoint online for free",
   description:
-    "Turn every PDF page into a 16:9 PowerPoint slide with GetPDFTool's free online converter.",
+    "Turn every PDF page into a page-sized PowerPoint slide with GetPDFTool's free online converter.",
   url: PAGE_URL,
   totalTimeISO: "PT1M",
   steps: [
@@ -125,7 +125,7 @@ const howToData = howToJsonLd({
     },
     {
       name: "Convert to PowerPoint",
-      text: "Click Convert to PowerPoint — each page is rendered as a high-resolution image on a 16:9 slide.",
+      text: "Click Convert to PowerPoint — each page is rendered as a high-resolution image on a page-sized slide.",
     },
     {
       name: "Download & present",
@@ -165,7 +165,7 @@ export default function PdfToPptxPage() {
             </span>
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-base text-gray-600 sm:text-lg">
-            Turn every page of a PDF into a 16:9 slide. Open the result in
+            Turn every page of a PDF into a page-sized slide. Open the result in
             PowerPoint, Keynote or Google Slides and add notes, animations or
             new content on top. Free, no signup, in your browser.
           </p>
