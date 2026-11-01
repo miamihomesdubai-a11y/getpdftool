@@ -129,6 +129,15 @@ export default function ConvertFromPdfTool({
     e.target.value = "";
   };
 
+  const tryExample = async () => {
+    try {
+      const { createSamplePdf } = await import("@/lib/sampleDocument");
+      await loadFile(await createSamplePdf());
+    } catch {
+      setError("Could not open the example. Please choose a PDF instead.");
+    }
+  };
+
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
     const f = e.dataTransfer.files?.[0];
@@ -249,6 +258,11 @@ export default function ConvertFromPdfTool({
             Or pick one from your computer. Conversion happens in your
             browser — your file is never uploaded.
           </p>
+          {(target === "docx" || target === "xlsx" || target === "text" || target === "pptx") && (
+            <p className="mx-auto mt-4 max-w-2xl rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-relaxed text-amber-900">
+              {target === "pptx" ? "Creates image-based slides. Text on each page is not separately editable; slide size follows the first page." : "Requires a PDF with an existing text layer. Image-only scans need OCR elsewhere. Original layout, tables and fonts are not reproduced exactly; check extracted text and numbers."}
+            </p>
+          )}
           <div className="mt-6">
             <input
               ref={fileInputRef}
@@ -264,6 +278,10 @@ export default function ConvertFromPdfTool({
             >
               Choose PDF file
             </button>
+            <button type="button" onClick={tryExample} className="btn-ghost mt-3 sm:ml-3 sm:mt-0">
+              Try a sample PDF
+            </button>
+            <p className="mt-3 text-xs text-gray-500">The sample contains fictional text and two pages. No personal file is needed.</p>
           </div>
           {error && (
             <p className="mt-4 text-sm text-red-600" role="alert">
@@ -369,7 +387,7 @@ export default function ConvertFromPdfTool({
                   ? "Text content becomes editable paragraphs in Word. Layout is simplified to plain paragraphs."
                   : target === "xlsx"
                     ? "Each PDF page becomes a sheet. Lines become rows, words become cells based on their position."
-                    : "Each PDF page becomes a high-resolution slide image — perfect visual fidelity."}
+                    : "Each PDF page becomes a high-resolution slide image — image-based output."}
           </p>
           <button
             type="button"
