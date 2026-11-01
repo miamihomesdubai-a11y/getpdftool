@@ -46,7 +46,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "PDF to Word — Free Online PDF to DOCX Converter",
     description:
-      "Convert any PDF to an editable Word document. Free, browser-based, your file stays private.",
+      "Convert a text-based PDF to an editable Word document. Free, browser-based, your file stays private.",
     url: PAGE_URL,
     siteName: "GetPDFTool",
     type: "website",
@@ -64,7 +64,7 @@ const FAQS = [
   },
   {
     q: "Are layout, tables and images preserved?",
-    a: "Text content and reading order are preserved as paragraphs. Complex layout — multi-column flow, exact font matching, embedded images, and structured tables — is simplified during conversion. For visual-perfect output, our PDF to JPG or PDF to PowerPoint tools embed each page as an image.",
+    a: "Existing text is extracted into editable paragraphs; reading order can need manual correction. Complex layout — multi-column flow, exact font matching, embedded images, and structured tables — is simplified during conversion. For visual-perfect output, our PDF to JPG or PDF to PowerPoint tools embed each page as an image.",
   },
   {
     q: "Does it work with scanned PDFs?",
@@ -114,7 +114,7 @@ const softwareJsonLd = {
 const howToData = howToJsonLd({
   name: "How to convert PDF to Word online for free",
   description:
-    "Turn any PDF into an editable .docx file with GetPDFTool's free online PDF to Word converter.",
+    "Extract text from a text-based PDF into an editable .docx file with GetPDFTool's free online PDF to Word converter.",
   url: PAGE_URL,
   totalTimeISO: "PT1M",
   steps: [
@@ -164,7 +164,7 @@ export default function PdfToWordPage() {
             </span>
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-base text-gray-600 sm:text-lg">
-            Turn any PDF into a real Word document you can edit in Microsoft
+            Extract text from a text-based PDF into a real Word document you can edit in Microsoft
             Word, Google Docs, Pages or LibreOffice. Free, no signup, no
             upload — your file stays in your browser.
           </p>
