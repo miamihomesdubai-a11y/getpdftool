@@ -1,3 +1,4 @@
+import ToolGuide from "./ToolGuide";
 import Link from "next/link";
 
 export type ConvertCard = {
@@ -43,6 +44,8 @@ export default function ConvertToTools({
 }) {
   const items = CONVERT_TO_PDF_TOOLS.filter((t) => t.href !== excludeHref);
   return (
+    <>
+      {excludeHref && <ToolGuide tool={excludeHref} />}
     <section className="container-narrow py-12">
       <h2 className="text-center text-2xl font-bold text-ink-900 sm:text-left sm:text-3xl">
         {heading}
@@ -75,5 +78,6 @@ export default function ConvertToTools({
         ))}
       </div>
     </section>
+    </>
   );
 }
