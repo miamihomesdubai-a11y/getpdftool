@@ -78,6 +78,8 @@ export default function PrivacyPage() {
         respective policies.
       </p>
 
+      <h2>Third-party services and remote resources</h2>
+      <p>Document processing in our tools is local to your browser, but visiting the website is not an offline activity. Page requests, advertising scripts, analytics and embedded Loom videos can contact their providers and disclose information about your visit. HTML documents can reference remote images, fonts or styles that make additional network requests. Avoid remote resources when processing sensitive content.</p>
       <h2>5. Analytics</h2>
       <p>
         We may use privacy-respecting analytics to understand which pages are
