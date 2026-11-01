@@ -1,3 +1,4 @@
+import ToolGuide from "@/components/ToolGuide";
 import dynamic from "next/dynamic";
 import AdSlot from "@/components/AdSlot";
 import RelatedTools from "@/components/RelatedTools";
@@ -57,7 +58,7 @@ const FEATURES = [
 const FAQS = [
   {
     q: "Is GetPDFTool really free?",
-    a: "Yes. The PDF editor is 100% free to use, with no sign-up, no trial period, and no watermarks added to your files. We pay for the site by showing relevant advertising.",
+    a: "Yes. The PDF editor is 100% free to use, with no sign-up, no trial period, and no watermarks added to your files. Advertising may help support the site.",
   },
   {
     q: "Are my files uploaded to your servers?",
@@ -77,7 +78,7 @@ const FAQS = [
   },
   {
     q: "Do you have other PDF tools?",
-    a: "Yes — and more are on the way. We are continuously adding tools such as merge, split, compress, convert, sign and many others. Check back soon.",
+    a: "Yes. Use the tool catalogue to merge, reorder, add, copy, delete or rotate pages, compress a document, place a signature or watermark, or convert supported files. Read each tool’s guide for its limits.",
   },
 ];
 
@@ -97,7 +98,7 @@ const faqJsonLd = {
 const howToData = howToJsonLd({
   name: "How to edit a PDF online for free",
   description:
-    "Edit any PDF in your browser with GetPDFTool — add text, draw, highlight, rotate or delete pages, then download the edited PDF.",
+    "Annotate PDFs in your browser with GetPDFTool — add text, draw, highlight, rotate or delete pages, then download the edited PDF.",
   url: SITE,
   totalTimeISO: "PT1M",
   steps: [
@@ -136,7 +137,7 @@ export default function HomePage() {
           </span>
           <h1 className="mt-5 text-5xl font-extrabold tracking-tighter text-ink-900 sm:text-6xl lg:text-7xl">
             <span className="block">Free online PDF editor —</span>
-            <span className="block text-brand-600">edit any PDF in your browser</span>
+            <span className="block text-brand-600">annotate PDFs in your browser</span>
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-ink-600 sm:text-lg">
             Add text, draw, highlight, rotate or delete pages, sign, merge,
@@ -154,6 +155,7 @@ export default function HomePage() {
 
       {/* Editor */}
       <PDFEditor />
+      <ToolGuide tool="/" />
 
       {/* Mid-page ad slot */}
       <div className="container-narrow">
@@ -190,7 +192,7 @@ export default function HomePage() {
         </h2>
         <p className="mx-auto mt-3 max-w-2xl text-center text-ink-600">
           GetPDFTool is built for everyone — students, teachers, freelancers,
-          and small businesses. Free forever, with more tools coming soon.
+          and small businesses. The tools listed here are free to use.
         </p>
         <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map((f) => (
