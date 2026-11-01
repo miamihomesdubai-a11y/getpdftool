@@ -47,7 +47,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "PDF to Excel — Free Online PDF to XLSX Converter",
     description:
-      "Convert any PDF into an editable Excel spreadsheet. Free, browser-based, your file stays private.",
+      "Extract existing PDF text into an editable Excel spreadsheet. Free, browser-based, your file stays private.",
     url: PAGE_URL,
     siteName: "GetPDFTool",
     type: "website",
@@ -115,7 +115,7 @@ const softwareJsonLd = {
 const howToData = howToJsonLd({
   name: "How to convert PDF to Excel online for free",
   description:
-    "Turn any PDF into an editable .xlsx spreadsheet with GetPDFTool's free online PDF to Excel converter.",
+    "Convert a text-based PDF into an editable .xlsx spreadsheet with GetPDFTool's free online PDF to Excel converter.",
   url: PAGE_URL,
   totalTimeISO: "PT1M",
   steps: [

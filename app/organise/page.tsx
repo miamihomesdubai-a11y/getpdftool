@@ -1,3 +1,4 @@
+import ToolGuide from "@/components/ToolGuide";
 import dynamic from "next/dynamic";
 import type { Metadata } from "next";
 import AdSlot from "@/components/AdSlot";
@@ -299,6 +300,7 @@ export default function OrganisePage() {
 
       {/* The tool */}
       <OrganiseTool />
+      <ToolGuide tool="/organise" />
 
       {/* Mid-page ad slot */}
       <div className="container-narrow">

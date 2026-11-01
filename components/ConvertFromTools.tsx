@@ -1,3 +1,4 @@
+import ToolGuide from "./ToolGuide";
 import Link from "next/link";
 
 export type ConvertCard = {
@@ -24,7 +25,7 @@ export const CONVERT_FROM_PDF_TOOLS: ConvertCard[] = [
     href: "/pdf-to-powerpoint",
     icon: "🎯",
     title: "PDF to PowerPoint",
-    body: "Each PDF page becomes a sharp 16:9 slide.",
+    body: "Each PDF page becomes an image-based slide; size follows the first page.",
   },
   {
     href: "/pdf-to-text",
@@ -49,6 +50,8 @@ export default function ConvertFromTools({
 }) {
   const items = CONVERT_FROM_PDF_TOOLS.filter((t) => t.href !== excludeHref);
   return (
+    <>
+      {excludeHref && <ToolGuide tool={excludeHref} />}
     <section className="container-narrow py-12">
       <h2 className="text-center text-2xl font-bold text-ink-900 sm:text-left sm:text-3xl">
         {heading}
@@ -81,5 +84,6 @@ export default function ConvertFromTools({
         ))}
       </div>
     </section>
+    </>
   );
 }

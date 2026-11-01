@@ -22,7 +22,7 @@ const PAGE_URL = "https://www.getpdftool.com/compress-pdf";
 export const metadata: Metadata = {
   title: "Compress PDF Online — Reduce PDF File Size Free | GetPDFTool",
   description:
-    "Free online PDF compressor. Reduce PDF file size with three quality levels — see the original size before and the new size after. Browser-based, no signup, no upload.",
+    "Free online PDF compressor. Reduce PDF file size with two compression settings — see the original size before and the new size after. Browser-based, no signup, no upload.",
   keywords: [
     "compress PDF",
     "compress PDF online",
@@ -43,7 +43,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Compress PDF — Free Online PDF Compressor",
     description:
-      "Reduce PDF file size with three quality levels. Free, browser-based, your file stays private.",
+      "Reduce PDF file size with two compression settings. Free, browser-based, your file stays private.",
     url: PAGE_URL,
     siteName: "GetPDFTool",
     type: "website",
@@ -53,15 +53,15 @@ export const metadata: Metadata = {
 const FAQS = [
   {
     q: "How much can I shrink a PDF?",
-    a: "It depends on the source. PDFs full of high-resolution images can shrink by 50–80% with the Smallest size level. PDFs that are already optimised or mostly text may only shrink a few percent on the High quality (lossless) level.",
+    a: 'Results depend on the file. There is no guaranteed reduction. Image-heavy PDFs may benefit from Recommended; an already compact text PDF may stay the same size or grow. Compare the output and keep your original.',
   },
   {
-    q: "What's the difference between the three compression levels?",
-    a: "High quality re-saves the PDF with structural optimisations only — text stays selectable and quality is identical to the original, but file-size savings are small. Recommended re-renders pages at 150 DPI as compact JPEG — large savings, very readable. Smallest size uses 100 DPI and stronger JPEG — biggest savings, screen-quality only.",
+    q: "What's the difference between the two compression settings?",
+    a: 'High quality re-saves the PDF with structural optimisations and retains selectable text. Recommended renders pages at 150 DPI as JPEG images. It may reduce image-heavy files, but loses searchable text and interactive document features.',
   },
   {
     q: "Will the compressed PDF still be searchable?",
-    a: "Only the High quality (lossless) level preserves the original text layer. The Recommended and Smallest size levels rebuild pages as images, which means text inside them is no longer selectable or searchable. Choose High quality if searchability matters.",
+    a: 'High quality preserves the existing text layer. Recommended rebuilds pages as images, so their text is no longer selectable or searchable.',
   },
   {
     q: "Is the file uploaded to your server?",
@@ -69,11 +69,11 @@ const FAQS = [
   },
   {
     q: "Why is my compressed file the same size or larger?",
-    a: "If your PDF is already heavily optimised (e.g. text-only) the lossless level can't shrink it further. Try Recommended or Smallest size for image-style compression. Conversely, a tiny text-only PDF re-rendered as images may even grow slightly — the lossless option is better for those.",
+    a: 'Already optimised PDFs may not shrink further. Rasterising compact text pages can create a larger file. Compare both settings and keep the original if neither result is suitable.',
   },
   {
     q: "Can I compress a PDF for email?",
-    a: "Yes. Many email services limit attachments to 25 MB. Pick Recommended or Smallest size to get under that limit fast. After compressing, you can also use the Email button to open your mail app pre-filled.",
+    a: 'You can try either setting and compare the downloaded file against your email service’s attachment limit. A target size is not guaranteed. Attach the saved file yourself when sending.',
   },
   {
     q: "Does compressing change the page count?",
@@ -81,7 +81,7 @@ const FAQS = [
   },
   {
     q: "Will the compressed PDF print well?",
-    a: "High quality and Recommended both look good in print at typical sizes. Smallest size is fine for on-screen viewing and quick prints, but very fine details (small text on scans) may soften. For archival prints, stick with High quality or Recommended.",
+    a: 'Inspect the output at the intended print size. High quality preserves the original page content; Recommended can soften fine details because pages become images. Keep the original for archival use.',
   },
   {
     q: "Are there file-size or page-count limits?",
@@ -129,7 +129,7 @@ const howToData = howToJsonLd({
     },
     {
       name: "Pick a level",
-      text: "High quality (keeps text), Recommended (balanced), or Smallest size (most savings).",
+      text: "High quality preserves selectable text; Recommended renders pages as images. Compare file size and legibility.",
     },
     {
       name: "Compress & download",
@@ -147,7 +147,7 @@ const FEATURES = [
   {
     icon: "🗜",
     title: "Three quality levels",
-    body: "Pick High quality (keeps text), Recommended (balanced), or Smallest size (max reduction).",
+    body: "Choose High quality to preserve text, or Recommended for image-based compression. Compare the result with your original.",
   },
   {
     icon: "📊",
@@ -260,7 +260,7 @@ export default function CompressPdfPage() {
               {
                 n: 2,
                 t: "Pick a level",
-                b: "High quality (keeps text), Recommended (balanced), or Smallest size (most savings).",
+                b: "High quality preserves selectable text; Recommended renders pages as images. Compare file size and legibility.",
               },
               {
                 n: 3,

@@ -1,3 +1,4 @@
+import ToolGuide from "./ToolGuide";
 import Link from "next/link";
 
 export type ToolCard = {
@@ -48,7 +49,7 @@ export const ORGANISE_TOOLS: ToolCard[] = [
     href: "/compress-pdf",
     icon: "🗜️",
     title: "Compress PDF",
-    body: "Shrink PDF file size with three quality levels. See size before and after.",
+    body: "Compare two compression settings and their quality trade-offs. See size before and after.",
   },
   {
     href: "/sign-pdf",
@@ -73,6 +74,8 @@ export default function RelatedTools({
 }) {
   const items = ORGANISE_TOOLS.filter((t) => t.href !== excludeHref);
   return (
+    <>
+      {excludeHref && <ToolGuide tool={excludeHref} />}
     <section className="container-narrow py-12">
       <h2 className="text-center text-2xl font-bold text-ink-900 sm:text-left sm:text-3xl">
         {heading}
@@ -104,5 +107,6 @@ export default function RelatedTools({
         ))}
       </div>
     </section>
+    </>
   );
 }

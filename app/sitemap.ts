@@ -5,6 +5,7 @@ const SITE = "https://www.getpdftool.com";
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
   return [
+    { url: "https://www.getpdftool.com/guides", lastModified: new Date(), changeFrequency: "monthly", priority: 0.8 },
     { url: `${SITE}/`, lastModified: now, changeFrequency: "weekly", priority: 1 },
     { url: `${SITE}/organise`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
     { url: `${SITE}/merge-pdf`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },

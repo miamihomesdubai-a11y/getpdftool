@@ -93,10 +93,10 @@ export default function Header() {
             Contact
           </Link>
           <Link
-            href="/contact"
+            href="/guides"
             className="ml-2 inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-cta ring-1 ring-brand-700/30 transition hover:-translate-y-0.5 hover:bg-brand-700"
           >
-            <span aria-hidden="true">👑</span> Premium
+            PDF guides
           </Link>
         </nav>
       </div>
